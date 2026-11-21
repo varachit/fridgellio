@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     database_url: SecretStr | None = None
     docs_enabled: bool = True
     open_food_facts_user_agent: str = "Fridgellio/0.1"
+    openai_api_key: SecretStr | None = None
 
     def postgres_url(self) -> URL | None:
         if self.database_url is None:
