@@ -46,6 +46,131 @@ function backendSessions(action: "count" | "expire", username: string) {
   ).trim();
 }
 
+test("household profile menu edits names without losing the invitation draft", async ({
+  page,
+}, info) => {
+  await register(page, "profile" + suffix());
+  const trigger = page.getByRole("button", { name: "Profile menu" });
+  await expect(trigger).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign out", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Join", exact: true }).click();
+  await page.getByLabel("Invitation code").fill("ABCD-EFGH");
+  await trigger.focus();
+  await page.keyboard.press("ArrowDown");
+  const menu = page.getByRole("menu", { name: "Profile menu" });
+  await expect(
+    menu.getByRole("menuitem", { name: "Edit profile" }),
+  ).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByRole("menuitem", { name: "Sign out" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await menu.getByRole("menuitem", { name: "Edit profile" }).click();
+  await expect(page.getByLabel("Username", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Edit profile", exact: true }),
+  ).toBeFocused();
+  const saveProfile = page.getByRole("button", { name: "Save profile" });
+  await expect(saveProfile).toBeEnabled();
+  await saveProfile.click();
+  await expect(page.getByText("Profile saved.")).toBeVisible();
+  await expect(saveProfile).toBeEnabled();
+  const firstName = page.getByLabel("First name", { exact: true });
+  const lastName = page.getByLabel("Last name", { exact: true });
+  await firstName.fill("");
+  await expect(saveProfile).toBeDisabled();
+  await firstName.fill("   ");
+  await expect(saveProfile).toBeDisabled();
+  await firstName.fill("Pantry");
+  await lastName.fill("");
+  await expect(saveProfile).toBeDisabled();
+  await lastName.fill("   ");
+  await expect(saveProfile).toBeDisabled();
+  await page.getByLabel("Last name", { exact: true }).fill("Cook");
+  await page.getByRole("button", { name: "Save profile" }).click();
+  await expect(page.getByText("Profile saved.")).toBeVisible();
+  await expect(trigger).toContainText("PC");
+  await page.getByRole("button", { name: "Back to your household" }).click();
+  await expect(page.getByLabel("Invitation code")).toHaveValue("ABCD-EFGH");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await trigger.click();
+  await expect(menu).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("household-profile-menu.png"),
+  });
+  await menu.getByRole("menuitem", { name: "Sign out" }).click();
+  await expect(page.getByRole("heading", { name: /Good food/ })).toBeVisible();
+  expect((await page.request.get("/api/household")).status()).toBe(401);
+});
+
+test("inventory expiry notifications review past-date entries without changing stock", async ({
+  page,
+}, info) => {
+  await register(page, "expiry" + suffix());
+  await page.getByRole("button", { name: "Create household" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Inventory", exact: true }),
+  ).toBeVisible();
+  const today = localDay();
+  const yesterday = new Date(today + "T12:00:00");
+  yesterday.setDate(yesterday.getDate() - 1);
+  for (const [name, expiry_date] of [
+    ["Spinach", localDay(yesterday)],
+    ["Milk", localDay(yesterday)],
+    ["Eggs", today],
+  ]) {
+    const response = await page.request.post("/api/inventory", {
+      headers: { Origin: new URL(page.url()).origin },
+      data: {
+        name,
+        quantity: "100",
+        unit: "g",
+        location: "fridge",
+        expiry_date,
+      },
+    });
+    expect(response.status()).toBe(201);
+  }
+  await page.reload();
+  const alert = page.getByRole("alert", { name: "Expired groceries" });
+  await expect(alert).toContainText("2 grocery entries");
+  const bell = page.getByRole("button", {
+    name: "Notifications, 2 expired entries",
+    exact: true,
+  });
+  await expect(bell.locator(".notification-count")).toHaveText("2");
+  await bell.click();
+  const notifications = page.getByRole("dialog", {
+    name: "Notifications",
+    exact: true,
+  });
+  await expect(notifications.getByRole("listitem")).toHaveCount(2);
+  await expect(bell.locator(".notification-count")).toHaveCount(0);
+  await expect(notifications).not.toContainText("Eggs");
+  await page.screenshot({
+    path: info.outputPath("inventory-expiry-notifications.png"),
+    fullPage: true,
+  });
+  await page.keyboard.press("Escape");
+  await expect(bell).toBeFocused();
+  await expect(bell.locator(".notification-count")).toHaveCount(0);
+  await alert.getByRole("button", { name: "Review expired items" }).click();
+  await expect(page.locator("#past-date-groceries")).toBeFocused();
+  const inventory = await (
+    await page.request.get("/api/inventory?today=" + today)
+  ).json();
+  expect(inventory).toHaveLength(3);
+  expect(
+    inventory.every(
+      (entry: { quantity: string }) => Number(entry.quantity) === 100,
+    ),
+  ).toBe(true);
+});
+
 test("workspace navigation stays on the left and opens as a drawer on mobile", async ({
   page,
 }, info) => {
@@ -57,6 +182,20 @@ test("workspace navigation stays on the left and opens as a drawer on mobile", a
   const history = nav.getByRole("link", { name: "History", exact: true });
   const menu = page.getByRole("button", { name: "Menu", exact: true });
   const main = page.getByRole("main");
+  await expect(page.locator(".workspace-sidebar .user")).toHaveCount(0);
+  await expect(page.locator(".workspace-sidebar .language")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Profile menu" }),
+  ).toBeVisible();
+  await expect(page.locator(".scene-groceries")).toHaveAttribute(
+    "data-state",
+    /^(ready|fallback)$/,
+  );
+  expect(
+    await page
+      .locator(".pantry-head")
+      .evaluate((element) => getComputedStyle(element).borderTopWidth),
+  ).toBe("0px");
   await expect(inventory).toHaveAttribute("aria-current", "page");
   await expect(menu).toBeHidden();
   expect((await nav.boundingBox())!.x).toBeLessThan(
@@ -126,9 +265,7 @@ test("NextAuth revokes one backend session and isolates each member's query cach
     .getByRole("button", { name: "Create household", exact: true })
     .click();
   await go(page, "Settings");
-  const usernameField = page.getByLabel("Username", { exact: true });
-  await expect(usernameField).toHaveValue(username);
-  await expect(usernameField).toHaveAttribute("readonly", "");
+  await expect(page.getByLabel("Username", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("First name", { exact: true })).toHaveValue(
     "มาลี",
   );
@@ -138,7 +275,9 @@ test("NextAuth revokes one backend session and isolates each member's query cach
   await page.getByLabel("Last name", { exact: true }).fill("  Reyes  ");
   await page.getByRole("button", { name: "Save profile" }).click();
   await expect(page.getByText("Profile saved.")).toBeVisible();
-  await expect(page.getByText("มาลี Reyes", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Profile menu" }),
+  ).toContainText("มR");
   await page.getByLabel("Ingredient name").fill("Cashews");
   await page
     .getByRole("group")
@@ -172,7 +311,9 @@ test("NextAuth revokes one backend session and isolates each member's query cach
     await expect(
       second.getByRole("heading", { name: "Inventory", exact: true }),
     ).toBeVisible();
-    await expect(second.getByText("มาลี Reyes", { exact: true })).toBeVisible();
+    await expect(
+      second.getByRole("button", { name: "Profile menu" }),
+    ).toContainText("มR");
     await go(second, "Settings");
     const firstName = second.getByLabel("First name", { exact: true });
     const lastName = second.getByLabel("Last name", { exact: true });
@@ -181,14 +322,15 @@ test("NextAuth revokes one backend session and isolates each member's query cach
     await expect(lastName).toHaveAttribute("required", "");
     await expect(lastName).toHaveValue("Reyes");
     await lastName.clear();
-    await saveProfile.click();
-    await expect(lastName).toBeFocused();
+    await expect(saveProfile).toBeDisabled();
     await lastName.fill("   ");
-    await saveProfile.click();
+    await expect(saveProfile).toBeDisabled();
     await expect(
-      second.getByText("Enter both a first name and a last name."),
+      second.getByText("Please fill in both your first and last name."),
     ).toBeVisible();
-    await expect(second.getByText("มาลี Reyes", { exact: true })).toBeVisible();
+    await expect(
+      second.getByRole("button", { name: "Profile menu" }),
+    ).toContainText("มR");
     await second.reload();
     await expect(firstName).toHaveValue("มาลี");
     await expect(lastName).toHaveValue("Reyes");
@@ -279,7 +421,7 @@ test("members share inventory, record a cooked meal and retain depleted history"
   await page
     .getByRole("button", { name: "Create household", exact: true })
     .click();
-  await expect(page.locator(".scene-dashboard")).toHaveAttribute(
+  await expect(page.locator(".scene-groceries")).toHaveAttribute(
     "data-state",
     /^(ready|fallback)$/,
   );
@@ -453,7 +595,8 @@ test("members share inventory, record a cooked meal and retain depleted history"
       member.getByRole("button", { name: "Skillet" }),
     ).toHaveAttribute("aria-pressed", "true");
     await expect(member.getByText("No foods on your list.")).toBeVisible();
-    await member.getByRole("button", { name: "Switch to Thai" }).click();
+    await member.getByRole("combobox", { name: "Display language" }).click();
+    await member.getByRole("option", { name: "ไทย", exact: true }).click();
     await expect(
       member.getByRole("heading", { name: "การตั้งค่า", exact: true }),
     ).toBeVisible();
@@ -718,11 +861,17 @@ test("barcode review, pantry request preview, edit and removal", async ({
   await expect(page.getByRole("button", { name: /Rice/ })).toContainText(
     "Other",
   );
-  await page.getByRole("button", { name: "Switch to Thai" }).click();
+  await go(page, "Settings");
+  await page.getByRole("combobox", { name: "Display language" }).click();
+  await page.getByRole("option", { name: "ไทย", exact: true }).click();
+  await go(page, "คลังอาหาร");
   await expect(page.getByRole("button", { name: /ข้าว/ })).toContainText(
     "250 กรัม",
   );
-  await page.getByRole("button", { name: "เปลี่ยนเป็นภาษาอังกฤษ" }).click();
+  await go(page, "การตั้งค่า");
+  await page.getByRole("combobox", { name: "ภาษาที่แสดง" }).click();
+  await page.getByRole("option", { name: "English", exact: true }).click();
+  await go(page, "Inventory");
   await page.getByRole("button", { name: /Rice/ }).click();
   await dialog.getByRole("button", { name: "Remove entry" }).click();
   await dialog.getByRole("button", { name: "Confirm removal" }).click();
@@ -883,11 +1032,15 @@ test("reviews photo suggestions and previews a meal with personal overrides", as
     page.getByRole("region", { name: "Request preview" }),
   ).toContainText("3 servings");
   await expect(page.getByText(dish.steps[0].en)).toBeVisible();
-  await page.getByRole("button", { name: "Switch to Thai" }).click();
+  await go(page, "Settings");
+  await page.getByRole("combobox", { name: "Display language" }).click();
+  await page.getByRole("option", { name: "ไทย", exact: true }).click();
+  await go(page, "ไอเดียมื้ออาหาร");
   await expect(page.getByText(dish.steps[0].th)).toBeVisible();
   await expect(
     page.getByRole("region", { name: "ตัวอย่างคำขอเมนู" }),
-  ).toContainText("ไมโครเวฟ");
+  ).not.toContainText("ไมโครเวฟ");
+  await expect(page.getByLabel("จำนวนที่เสิร์ฟ", { exact: true })).toHaveText("2");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
   expect(
@@ -903,9 +1056,9 @@ test("reviews photo suggestions and previews a meal with personal overrides", as
   await cuisineToggle.press("Enter");
   await expect(
     page.getByRole("checkbox", { name: "ไทย", exact: true }),
-  ).toBeChecked();
+  ).not.toBeChecked();
   await expect(
-    page.getByRole("radio", { name: "ง่าย", exact: true }),
+    page.getByRole("radio", { name: "ทุกระดับ", exact: true }),
   ).toBeChecked();
   expect(
     await (await page.request.get("/api/preferences/foods-to-avoid")).json(),

@@ -21,6 +21,7 @@ import {
   Menu as MenuIcon,
   X,
   UsersRound,
+  ArrowLeft,
 } from "lucide-react";
 import { api, ApiError, errorCode } from "@/lib/api";
 import {
@@ -28,10 +29,14 @@ import {
   householdQuery,
   inventoryQuery,
   preferencesQuery,
-  profileQuery,
 } from "@/lib/queries";
 import { LanguageProvider, useLanguage } from "./language";
-import { localDay, type Household, type Language } from "@/lib/pantry";
+import {
+  expiredEntries,
+  localDay,
+  type Household,
+  type Language,
+} from "@/lib/pantry";
 import { AccessFrame, SignIn, Onboarding } from "./access";
 import {
   Brand,
@@ -44,13 +49,12 @@ import {
 } from "./ui";
 import { Inventory, HistoryView } from "./inventory";
 import { StockEditor } from "./stock-editor";
-import {
-  HouseholdInvitations,
-  HouseholdMembers,
-  MemberIdentity,
-} from "./household-members";
+import { HouseholdInvitations, HouseholdMembers } from "./household-members";
 import { SettingsView } from "./management";
 import { Meals } from "./meals";
+import { AccountMenu } from "./account-menu";
+import { ProfileSettings } from "./profile-settings";
+import { ExpiryAlert, ExpiryNotifications } from "./expiry-notifications";
 type Account = Session["user"];
 type Page = "pantry" | "soon" | "meals" | "history" | "members" | "settings";
 const pages: Page[] = [
@@ -135,6 +139,13 @@ function MemberProvider({ account }: { account: Account }) {
 }
 
 function MemberKitchen({ account }: { account: Account }) {
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [onboardingBusy, setOnboardingBusy] = useState(false);
+  const onboardingContent = useRef<HTMLDivElement>(null);
+  const profileHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (editingProfile) profileHeading.current?.focus();
+  }, [editingProfile]);
   const { lang, setLanguage } = useLanguage();
   const { t } = useText();
   const client = useQueryClient();
@@ -169,7 +180,17 @@ function MemberKitchen({ account }: { account: Account }) {
   const problem = errorCode(household.error || preferences.error);
   if (!household.data || !preferences.data)
     return (
-      <AccessFrame changeLanguage={flip}>
+      <AccessFrame
+        changeLanguage={flip}
+        headerActions={
+          <AccountMenu
+            account={account}
+            busy={action.busy || onboardingBusy}
+            editProfile={() => setEditingProfile(true)}
+            signOut={logout}
+          />
+        }
+      >
         <Message code={action.error || problem} />
         {problem ? (
           <div className="actions">
@@ -179,20 +200,37 @@ function MemberKitchen({ account }: { account: Account }) {
                 void preferences.refetch();
               }}
             />
-            <button
-              className="link"
-              type="button"
-              disabled={action.busy}
-              onClick={logout}
-            >
-              {t("Sign out", "ออกจากระบบ")}
-            </button>
           </div>
         ) : household.data === null && preferences.data ? (
-          <Onboarding
-            joined={(h) => client.setQueryData(householdQuery.queryKey, h)}
-            signOut={logout}
-          />
+          <>
+            <div hidden={editingProfile} ref={onboardingContent}>
+              <Onboarding
+                joined={(h) => client.setQueryData(householdQuery.queryKey, h)}
+                onBusyChange={setOnboardingBusy}
+              />
+            </div>
+            {editingProfile && (
+              <div className="access-inner access-profile">
+                <button
+                  type="button"
+                  className="plain"
+                  onClick={() => {
+                    setEditingProfile(false);
+                    requestAnimationFrame(() =>
+                      onboardingContent.current?.querySelector("h1")?.focus(),
+                    );
+                  }}
+                >
+                  <ArrowLeft size={18} aria-hidden="true" />
+                  {t("Back to your household", "กลับไปหน้าครัวเรือน")}
+                </button>
+                <h1 ref={profileHeading} tabIndex={-1}>
+                  {t("Edit profile", "แก้ไขโปรไฟล์")}
+                </h1>
+                <ProfileSettings />
+              </div>
+            )}
+          </>
         ) : (
           <Busy />
         )}
@@ -209,22 +247,6 @@ function MemberKitchen({ account }: { account: Account }) {
     />
   );
 }
-function SignedInMember({ account }: { account: Account }) {
-  const profile = useQuery(profileQuery);
-  return (
-    <MemberIdentity
-      profile={{
-        ...(profile.data ?? {
-          first_name: account.firstName,
-          last_name: account.lastName,
-        }),
-        username: account.name,
-        profile_picture_url: account.image,
-      }}
-    />
-  );
-}
-
 function Workspace({
   account,
   household,
@@ -248,6 +270,7 @@ function Workspace({
     [notice, setNotice] = useState(false);
   const menu = useRef<HTMLDialogElement>(null);
   const content = useRef<HTMLElement>(null);
+  const [reviewExpired, setReviewExpired] = useState(false);
   useEffect(() => {
     const sync = () => {
       setPage(hashPage());
@@ -290,6 +313,18 @@ function Workspace({
   }, []);
   const client = useQueryClient();
   const stock = useQuery(inventoryQuery(day));
+  const expired = stock.error ? [] : expiredEntries(stock.data ?? [], day);
+  useEffect(() => {
+    if (page !== "soon" || !reviewExpired || !stock.data) return;
+    const heading = document.getElementById("past-date-groceries");
+    heading?.scrollIntoView({ block: "start" });
+    heading?.focus({ preventScroll: true });
+    setReviewExpired(false);
+  }, [page, reviewExpired, stock.data]);
+  const showExpired = () => {
+    setReviewExpired(true);
+    location.hash = "soon";
+  };
   const refreshStock = () => {
     void client.invalidateQueries({ queryKey: ["inventory"] });
     void client.invalidateQueries({ queryKey: historyQuery.queryKey });
@@ -348,30 +383,46 @@ function Workspace({
       <aside className="workspace-sidebar">
         <Brand />
         {navigation}
-        <div className="member-controls">
-          <SignedInMember account={account} />
-          <LanguageButton disabled={busy} change={flip} />
-          {signOutButton}
-        </div>
+        <div className="member-controls">{signOutButton}</div>
       </aside>
       <header className="workspace-mast">
-        <Brand />
-        <div className="mast-actions">
-          <LanguageButton disabled={busy} change={flip} />
+        <div className="workspace-mast-start">
           <button
             className="secondary workspace-menu-toggle"
             type="button"
             aria-expanded={menuOpen}
             aria-controls="workspace-drawer"
             aria-haspopup="dialog"
+            aria-label={t("Menu", "เมนู")}
             onClick={(event) => {
               event.currentTarget.focus();
               setMenuOpen(true);
             }}
           >
             <MenuIcon size={18} aria-hidden="true" />
-            {t("Menu", "เมนู")}
           </button>
+        </div>
+        <div className="workspace-topbar-actions">
+          <ExpiryNotifications
+            key={`${account.id}:${household.id}`}
+            storageKey={`fridgellio:expiry-read:${account.id}:${household.id}`}
+            entries={expired}
+            loading={!stock.data && !stock.error}
+            failed={Boolean(stock.error)}
+            retry={() => {
+              void stock.refetch();
+            }}
+            review={showExpired}
+          />
+          <AccountMenu
+            account={account}
+            busy={busy}
+            signOut={logout}
+            editProfile={() => {
+              location.hash = "settings";
+              requestAnimationFrame(() => content.current?.focus());
+            }}
+          />
         </div>
       </header>
       <dialog
@@ -398,14 +449,14 @@ function Workspace({
               </button>
             </header>
             {navigation}
-            <div className="member-controls">
-              <SignedInMember account={account} />
-              {signOutButton}
-            </div>
+            <div className="member-controls">{signOutButton}</div>
           </div>
         )}
       </dialog>
       <main id="content" ref={content} tabIndex={-1} className="content">
+        {page === "pantry" && (
+          <ExpiryAlert entries={expired} review={showExpired} />
+        )}
         <div
           className={page === "pantry" ? "pagehead pantry-head" : "pagehead"}
         >
@@ -455,7 +506,7 @@ function Workspace({
               </button>
             )}
           </div>
-          {page === "pantry" && <Illustration variant="dashboard" />}
+          {page === "pantry" && <Illustration variant="groceries" />}
         </div>
         <Message code={actionError} />
         {notice && (
@@ -471,7 +522,7 @@ function Workspace({
             {household.can_invite && <HouseholdInvitations />}
           </div>
         ) : page === "settings" ? (
-          <SettingsView username={account.name} />
+          <SettingsView changeLanguage={flip} languageBusy={busy} />
         ) : (
           <>
             <Message code={errorCode(stock.error)} />

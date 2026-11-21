@@ -117,6 +117,8 @@ Use `AnimatePresence` with stable ID-based keys for exit animations. Do not use 
 
 ## Three.js illustrations
 
+Inventory uses a plain heading aligned with Use soon, without a surrounding card. Place the paper grocery-bag model beside the heading on a transparent background. Hover or tap triggers one small hop of the bag and its contents; reduced motion keeps it still. Keep the profile in the top bar and the language control in Settings, rather than the sidebar or mobile drawer.
+
 Use the [Three.js illustration collection](../frontend/experimental/README.md) for landing-page and dashboard decoration: rounded forms, matte materials, Emerald and cream surfaces, and soft lighting. Keep the landing composition prominent and the dashboard composition compact. Canvas content is decorative; text, data, and actions remain accessible HTML. Three.js manages its own scene transforms, while Framer Motion manages surrounding UI transitions. Honor reduced motion, pause offscreen rendering, and retain a static fallback when WebGL is unavailable.
 
 On refrigerator hover, open the hinged doors to reveal stocked shelves and give their ingredients one gentle hop. On dashboard board hover, animate only the bowl's ingredients with a short staggered hop. Avoid looping bounces, close the fridge smoothly on pointer exit, and allow touch taps without blocking scrolling. Under reduced motion, change the door state immediately and omit all hops. Hover content is decorative and must not convey exclusive pantry information.

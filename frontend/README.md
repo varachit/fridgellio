@@ -1,6 +1,6 @@
 # Fridgellio web app
 
-Household members can register, join a shared pantry, add groceries, track dates, and record use or discard. Open **Household** to see members and manage invitations. **Settings** holds your profile, personal foods to avoid, and shared kitchen equipment. Switch between English and Thai using the language control.
+Household members can register, join a shared pantry, add groceries, track dates, and record use or discard. Open **Household** to see members and manage invitations. **Settings** holds your profile, language preference, personal foods to avoid, and shared kitchen equipment. Switch between English and Thai in **Settings → Language**.
 
 ## Local development
 
@@ -14,6 +14,8 @@ pnpm dev
 ```
 
 Open `http://localhost:3000`. Create an account and choose **Create household**. To share a pantry, the owner can generate a code in **Household**. A new member can enter it after registration.
+
+On **Your household**, the circular profile button in the top-right corner opens **Edit profile** and **Sign out**. Editing names before joining a household preserves the invitation-code draft. The button uses the account's profile photo when available and falls back to initials.
 
 ## Server configuration
 
@@ -32,7 +34,7 @@ pnpm start
 
 ## Authentication and state
 
-NextAuth’s Credentials provider calls FastAPI to register or sign in. FastAPI owns the account, password hash, and seven-day session. NextAuth keeps the FastAPI bearer token in an encrypted HttpOnly cookie. The public session contains the account ID, username (as `user.name`), nullable `user.firstName`, `user.lastName`, and `user.image`, and expiry. The navigation displays a provisioned HTTPS profile picture or the member’s initials. The same-origin Next.js API proxy forwards the bearer token to FastAPI for authorization. [Credentials provider](https://next-auth.js.org/providers/credentials)
+NextAuth’s Credentials provider calls FastAPI to register or sign in. FastAPI owns the account, password hash, and seven-day session. NextAuth keeps the FastAPI bearer token in an encrypted HttpOnly cookie. The public session contains the account ID, username (as `user.name`), nullable `user.firstName`, `user.lastName`, and `user.image`, and expiry. The top-bar profile button displays a provisioned HTTPS profile picture or the member’s initials. The same-origin Next.js API proxy forwards the bearer token to FastAPI for authorization. [Credentials provider](https://next-auth.js.org/providers/credentials)
 
 Reading the web session checks the backend session. Signing out revokes that browser’s backend session before clearing its cookie. If FastAPI cannot confirm revocation, the form allows a retry. Browsers using the previous web cookie sign in once with their existing credentials.
 
@@ -40,6 +42,11 @@ TanStack React Query manages household, preference, inventory, history, equipmen
 
 ## Pantry workflows
 
+- The expiry bell badge shows unread alerts. Opening the loaded panel clears it, while the expired-item list and Inventory alert stay available. Read state survives reloads in this browser and is separate for each account and household. Newly expired entries or changed expiry dates can show a new badge.
+- Data lists in Inventory, History, and Household use white containers with rounded borders, row separators, and consistent cell spacing. Keyboard focus remains visible around interactive rows.
+- In **Settings → Language**, use the **Display language** dropdown to choose **English** or **ไทย**. It supports arrow keys, Enter, Escape, and touch. Selecting the current language makes no change; while saving, the control is disabled. A failed save retains the previous language.
+- The workspace top bar keeps expiry notifications and the profile menu on the right. The sidebar and mobile drawer contain navigation and sign out, with no profile or language controls. Change language in **Settings → Language**. Inventory shows an alert for positive-quantity entries dated before the member's local today. The bell lists those entries, with a link to the past-date section of **Use soon**. Counts update with inventory refreshes and at local midnight; no stock is discarded automatically.
+- Inventory uses a plain page heading aligned with **Use soon**, with a Three.js paper grocery bag beside it. Hover or tap the bag for one gentle hop. The bag stays still under reduced motion and has a static fallback image when WebGL is unavailable.
 - Inventory shows active entries separately for each purchase. Search by any saved name, filter by storage location, and select an entry to edit, remove, use, or discard it. Shared stock refreshes after writes, on window focus, and every 30 seconds while visible.
 - **Use soon** groups entries due today through three days ahead and lists past-date groceries separately. The app sends the member’s local calendar date to FastAPI.
 - **History** shows who added, used, or discarded stock and retains those events after an entry is depleted or removed. A retry of the same deduction in the open form reuses its request key.

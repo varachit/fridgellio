@@ -4,16 +4,16 @@ Fridgellio helps households track pantry items and groceries together and decide
 
 ## Who it serves
 
-The first release is designed for household members who shop and cook. They share one pantry where they can check what is already at home, see which groceries are due soon, and record what they used or discarded. Registration requires a first name and last name. Each member signs in to Fridgellio with their own username and password. Members can edit their names under **Settings → Profile**, where both fields are required. The sidebar uses the username for older accounts that have no saved name. Profile pictures are read-only.
+The first release is designed for household members who shop and cook. They share one pantry where they can check what is already at home, see which groceries are due soon, and record what they used or discarded. Registration requires a first name and last name. Each member signs in to Fridgellio with their own username and password. Members can edit their names under **Settings → Profile**, where both fields are required. The top-bar profile button uses initials when a picture is unavailable, deriving them from the username for older accounts without saved names. Profile pictures are read-only.
 
 ## First-release experience
 
 1. Add groceries manually, take a photo for AI suggestions, or select **Scan barcode** and point the camera at a barcode. The app reads the digits and looks up the product automatically. You can also type the digits and select **Look up product**. Review the name, quantity, unit, and storage location before saving. Add an expiry date when available.
-2. Open **Use soon** to see food dated within the next three days, with the closest dates first. Past-date entries appear in a separate list.
+2. Open **Use soon** to see food dated within the next three days, with the closest dates first. Past-date entries appear in a separate list. Inventory shows a past-date alert, and the workspace top bar has an expiry-notification bell and profile menu on the right. Select **Review expired items** to open the past-date list.
 3. In **Settings**, select a card for each piece of cooking equipment your household has. Select it again to remove it. Add any ingredients you want to exclude under **Foods to avoid**. In **Meal ideas**, choose servings and a time limit. Expand the sections for dietary styles, a nutrition goal, cuisines, difficulty, and kitchen settings. Adjust exclusions or equipment for this meal, then select **Generate menu** to preview the request.
 4. Record what you used directly in inventory after cooking. Open **History** or an item's **Entry history** to see who added, used, or discarded stock and in what quantity. Open **Household** to see who shares your pantry. The owner can create and remove unused invitation codes such as `K7RM-3X9D`.
 
-Use the app in English or Thai. Fridgellio saves both language versions of AI-generated grocery names and menus so switching languages can display the saved translation.
+Use the app in English or Thai. After joining a household, change language in **Settings → Language**; your profile remains in the top bar. Inventory uses a plain heading with a Three.js paper grocery bag that hops gently on hover or tap. Fridgellio saves both language versions of AI-generated grocery names and menus so switching languages can display the saved translation.
 
 ## Monorepo structure
 

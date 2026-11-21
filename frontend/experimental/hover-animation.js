@@ -13,6 +13,9 @@ export function createHoverAnimation(model) {
   const lower = model.getObjectByName('fridge-door-lower');
   const fridgeFood = model.getObjectByName('fridge-food');
   const bowlFood = model.getObjectByName('bowl-food');
+  const bag = model.getObjectByName('grocery-bag');
+  const bagY = bag?.position.y ?? 0;
+  const bagScale = bag?.scale.clone();
   const ingredients = (bowlFood?.children ?? []).map(object => ({
     object, y: object.position.y, scale: object.scale.clone(),
   }));
@@ -21,11 +24,17 @@ export function createHoverAnimation(model) {
   let velocity = 0;
   let fridgeTime = Infinity;
   let bowlTime = Infinity;
+  let bagTime = Infinity;
 
   function apply() {
     if (upper) upper.rotation.y = progress * 2.15;
     if (lower) lower.rotation.y = progress * 2.25;
     if (fridgeFood) fridgeFood.position.y = hop(fridgeTime) * 0.055;
+    if (bag) {
+      const lift = hop(bagTime);
+      bag.position.y = bagY + lift * 0.085;
+      bag.scale.set(bagScale.x * (1 - lift * 0.015), bagScale.y * (1 + lift * 0.025), bagScale.z * (1 - lift * 0.015));
+    }
     ingredients.forEach(({ object, y, scale }, index) => {
       const lift = hop(bowlTime - index * 0.045);
       object.position.y = y + lift * (index === 0 ? 0.11 : 0.085);
@@ -37,6 +46,7 @@ export function createHoverAnimation(model) {
     velocity = 0;
     fridgeTime = Infinity;
     bowlTime = Infinity;
+    bagTime = Infinity;
     apply();
   }
   return {
@@ -50,6 +60,7 @@ export function createHoverAnimation(model) {
       else {
         if (next === 'fridge') fridgeTime = -0.18;
         if (next === 'bowl') bowlTime = 0;
+        if (next === 'bag') bagTime = 0;
       }
     },
     step(delta) {
@@ -69,11 +80,12 @@ export function createHoverAnimation(model) {
       }
       fridgeTime += dt;
       bowlTime += dt;
+      bagTime += dt;
       apply();
     },
     get active() {
       const goal = target === 'fridge' ? 1 : 0;
-      return progress !== goal || velocity !== 0 || fridgeTime < 0.66 || bowlTime < 0.66 + ingredients.length * 0.045;
+      return progress !== goal || velocity !== 0 || fridgeTime < 0.66 || bowlTime < 0.66 + ingredients.length * 0.045 || bagTime < 0.66;
     },
     reset() {
       target = null;
