@@ -8,6 +8,7 @@ import {
   units,
   validDate,
   quantityError,
+  packageMeasurement,
   type Stock,
   type Unit,
   type Location,
@@ -234,6 +235,7 @@ export function StockEditor({
       setSource(source);
       setDraft({
         ...blank,
+        ...packageMeasurement(data.Quantity, data.Unit),
         name: data.name || "",
         name_en: data.name_en || "",
         name_th: data.name_th || "",

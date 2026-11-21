@@ -4,6 +4,7 @@ import {
   localDay,
   validDate,
   quantityError,
+  packageMeasurement,
   eligibleEntries,
   displayName,
   type Stock,
@@ -27,6 +28,39 @@ test("quantities preserve database precision and whole-item rules", () => {
     quantityError("999999999999.999999", "g", "999999999999.999998"),
     "insufficient_stock",
   );
+});
+test("barcode package measurements prefill valid stock quantities and units", () => {
+  assert.deepEqual(packageMeasurement(170, " G "), {
+    quantity: "170",
+    unit: "g",
+  });
+  assert.deepEqual(packageMeasurement(0.25, "kg"), {
+    quantity: "0.25",
+    unit: "kg",
+  });
+  assert.deepEqual(packageMeasurement(6, "each"), {
+    quantity: "6",
+    unit: "each",
+  });
+  assert.deepEqual(packageMeasurement(250, "mg"), {
+    quantity: "0.25",
+    unit: "g",
+  });
+  assert.deepEqual(packageMeasurement(33, "cl"), {
+    quantity: "330",
+    unit: "ml",
+  });
+  assert.deepEqual(packageMeasurement(1, "oz"), {
+    quantity: "28.349523",
+    unit: "g",
+  });
+
+  assert.equal(packageMeasurement(null, "g"), null);
+  assert.equal(packageMeasurement(12, null), null);
+  assert.equal(packageMeasurement(1, "bottle"), null);
+  assert.equal(packageMeasurement(1.5, "each"), null);
+  assert.equal(packageMeasurement(Infinity, "lb"), null);
+  assert.equal(packageMeasurement(0, "ml"), null);
 });
 test("expiry uses local calendar days and validates leap dates", () => {
   assert.equal(localDay(new Date(2026, 5, 10, 0, 1)), "2026-06-10");

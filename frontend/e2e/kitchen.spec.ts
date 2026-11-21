@@ -577,6 +577,10 @@ test("camera barcode reading fills the code before explicit lookup", async ({
   await expect(dialog.getByLabel("Item name", { exact: true })).toHaveValue(
     "Rice",
   );
+  await expect(dialog.getByLabel("Quantity")).toHaveValue("500");
+  await expect(
+    dialog.getByRole("combobox", { name: "Unit", exact: true }),
+  ).toHaveValue("g");
   await expect(
     dialog.getByRole("link", { name: "Product source" }),
   ).toHaveAttribute("href", "https://example.com/rice");
@@ -620,12 +624,12 @@ test("barcode review, availability errors, edit and removal", async ({
   await expect(dialog.getByLabel("Item name", { exact: true })).toHaveValue(
     "Rice",
   );
-  await expect(dialog.getByLabel("Quantity")).toHaveValue("");
+  await expect(dialog.getByLabel("Quantity")).toHaveValue("500");
+  await expect(
+    dialog.getByRole("combobox", { name: "Unit", exact: true }),
+  ).toHaveValue("g");
   await expect(dialog.getByText(/Example · 500 g/)).toBeVisible();
   await dialog.getByLabel("Quantity").fill("250");
-  await dialog
-    .getByRole("combobox", { name: "Unit", exact: true })
-    .selectOption("g");
   await dialog.getByLabel("Storage location").selectOption("pantry");
   await dialog.getByRole("button", { name: "Save entry" }).click();
   await go(page, "Meal ideas");

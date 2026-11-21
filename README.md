@@ -8,7 +8,7 @@ The first release is designed for household members who shop and cook. They shar
 
 ## First-release experience
 
-1. Add groceries manually, take a photo for AI suggestions, or open the barcode camera and select **Read barcode** to fill in its digits. Select **Look up product** to search for a product match. Review the name, quantity, unit, and storage location before saving. Add an expiry date when available.
+1. Add groceries manually, take a photo for AI suggestions, or open the barcode camera and select **Read barcode** to fill in its digits. Select **Look up product** to find a match and prefill the quantity and unit when the package size is available. Review the name, quantity, unit, and storage location before saving. Add an expiry date when available.
 2. Open **Use soon** to see food dated within the next three days, with the closest dates first. Past-date entries appear in a separate list.
 3. In **Settings**, select a card for each piece of cooking equipment your household has. Select it again to remove it. Add any ingredients you want to exclude under **Foods to avoid**. In **Meal ideas**, request a menu using the shared pantry, selected equipment, and your personal food preferences. The menu shows what to make, how much to use, which equipment is needed, and how to cook it.
 4. Record what you used directly in inventory after cooking. Open **History** or an item's **Entry history** to see who added, used, or discarded stock and in what quantity. Open **Household** to see who shares your pantry. The owner can create and remove unused invitation codes such as `K7RM-3X9D`.
