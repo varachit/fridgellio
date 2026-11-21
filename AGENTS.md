@@ -2,11 +2,11 @@
 
 ## Project structure
 
-Fridgellio is in the requirements stage. `README.md` describes the household workflow, first-release scope, and proposed architecture. `docs/requirements.md` defines the product rules and acceptance criteria. Update both when a scope change affects the overview and detailed behavior. The planned monorepo has a Next.js frontend in `apps/web/` and a FastAPI backend in `apps/api/`. See `docs/backend-stack.md` for planned backend dependencies.
+Fridgellio is a monorepo with a FastAPI backend in `backend/` and a Next.js frontend in `frontend/`. `README.md` describes the household workflow and backend setup. `docs/requirements.md` defines the product rules and acceptance criteria. Update both when a scope change affects the overview and detailed behavior. See `docs/backend-stack.md` for dependencies and `docs/backend-todo.md` for implementation status.
 
 ## Development and review
 
-The repository currently contains Markdown documentation. There are no build, lint, or test commands. When changing documentation, verify that relative links resolve, tables render correctly, and examples still match the stated requirements. Document the actual setup and verification commands when implementation starts.
+Run backend checks in `backend/` with `uv run ruff check .`, `uv run ruff format --check .`, and `uv run pytest`. Use a PostgreSQL test database for migration, isolation, and concurrency checks. When changing documentation, verify that relative links resolve, tables render correctly, and examples match the stated requirements.
 
 ## Formatting and naming
 
