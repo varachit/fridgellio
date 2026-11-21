@@ -76,6 +76,31 @@ export function quantityError(raw: string, unit: Unit, maximum?: string) {
   if (maximum && micros(raw) > micros(maximum)) return "insufficient_stock";
   return null;
 }
+
+const packageUnitConversions = new Map<string, readonly [Unit, number]>([
+  ["mg", ["g", 0.001]],
+  ["cl", ["ml", 10]],
+  ["dl", ["ml", 100]],
+  ["oz", ["g", 28.349523125]],
+  ["lb", ["g", 453.59237]],
+]);
+
+export function packageMeasurement(amount: number | null, unit: string | null) {
+  if (typeof amount !== "number" || !unit) return null;
+  const packageUnit = unit.trim().toLowerCase();
+  const conversion = packageUnitConversions.get(packageUnit);
+  const stockUnit =
+    conversion?.[0] ?? units.find((value) => value === packageUnit);
+  if (!stockUnit) return null;
+
+  const quantity = conversion
+    ? (amount * conversion[1]).toFixed(6).replace(/\.?0+$/, "")
+    : String(amount);
+  return quantityError(quantity, stockUnit)
+    ? null
+    : { quantity, unit: stockUnit };
+}
+
 export const normalize = (value: string) =>
   value.normalize("NFC").trim().replace(/\s+/g, " ").toLowerCase();
 export function eligibleEntries(stock: Stock[], foods: string[], day: string) {

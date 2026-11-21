@@ -8,6 +8,7 @@ import {
   units,
   validDate,
   quantityError,
+  packageMeasurement,
   type Stock,
   type Unit,
   type Location,
@@ -31,11 +32,12 @@ type Suggestion = {
   expiry_date: string | null;
 };
 type Barcode = {
-  name: string | null;
+  name: string;
   name_en: string | null;
   name_th: string | null;
-  brands: string | null;
-  package_size: string | null;
+  brands: string;
+  Quantity: number | null;
+  Unit: string | null;
 };
 const blank: Draft = {
   name: "",
@@ -69,52 +71,116 @@ function payload(draft: Draft) {
     expiry_date: draft.expiry_date || null,
   };
 }
+async function readBarcodeFrame(video: HTMLVideoElement, signal: AbortSignal) {
+  const { videoWidth, videoHeight } = video;
+  if (!videoWidth || !videoHeight)
+    throw new ApiError("barcode_frame_unavailable");
+
+  const canvas = document.createElement("canvas");
+  const scale = Math.min(1, 1920 / Math.max(videoWidth, videoHeight));
+  canvas.width = Math.max(1, Math.round(videoWidth * scale));
+  canvas.height = Math.max(1, Math.round(videoHeight * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new ApiError("barcode_frame_unavailable");
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const photo = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", 0.92);
+  });
+  if (!photo) throw new ApiError("barcode_frame_unavailable");
+
+  const data = new FormData();
+  data.append("photo", photo, "barcode.jpg");
+  const digits = await api<unknown>("barcodes/decode", "POST", data, {
+    signal,
+  });
+  if (typeof digits !== "string" || !/^[0-9]{4,24}$/.test(digits))
+    throw new ApiError("service_unavailable");
+  return digits;
+}
+
 function Scanner({
   found,
   failed,
 }: {
-  found: (code: string) => void;
-  failed: () => void;
+  found: (digits: string) => void;
+  failed: (code: string) => void;
 }) {
+  const { t } = useText();
   const video = useRef<HTMLVideoElement>(null);
   const handlers = useRef({ found, failed });
   handlers.current = { found, failed };
   useEffect(() => {
-    let active = true,
-      finished = false,
-      stop: (() => void) | undefined;
-    async function start() {
-      const { BrowserMultiFormatReader } = await import("@zxing/browser");
-      if (!active || !video.current) return;
-      const reader = new BrowserMultiFormatReader();
-      const control = await reader.decodeFromConstraints(
-        { video: { facingMode: { ideal: "environment" } }, audio: false },
-        video.current,
-        (result, _error, controls) => {
-          if (!active) {
-            controls.stop();
-            return;
-          }
-          const value = result?.getText();
-          if (!finished && value && /^[0-9]{4,24}$/.test(value)) {
-            finished = true;
-            controls.stop();
-            handlers.current.found(value);
-          }
-        },
-      );
-      stop = () => control.stop();
-      if (!active) stop();
-    }
-    start().catch(() => {
-      if (active) handlers.current.failed();
-    });
-    return () => {
-      active = false;
-      stop?.();
+    const preview = video.current;
+    if (!preview) return;
+    const controller = new AbortController();
+    const { signal } = controller;
+    let stream: MediaStream | undefined;
+    let timer: number | undefined;
+
+    const stop = () => {
+      if (signal.aborted) return;
+      controller.abort();
+      window.clearTimeout(timer);
+      stream?.getTracks().forEach((track) => track.stop());
+      preview.srcObject = null;
     };
+
+    async function scan(element: HTMLVideoElement) {
+      if (signal.aborted) return;
+      let digits: string;
+      try {
+        digits = await readBarcodeFrame(element, signal);
+      } catch (error) {
+        if (signal.aborted) return;
+        const code =
+          error instanceof ApiError ? error.code : "service_unavailable";
+        if (code === "barcode_not_found" || code === "multiple_barcodes") {
+          // Wait for the user to reposition the camera before sending another frame.
+          timer = window.setTimeout(() => void scan(element), 750);
+        } else {
+          stop();
+          handlers.current.failed(code);
+        }
+        return;
+      }
+      if (signal.aborted) return;
+      stop();
+      handlers.current.found(digits);
+    }
+
+    async function start(element: HTMLVideoElement) {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      });
+      if (signal.aborted) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      element.srcObject = stream;
+      await element.play();
+      void scan(element);
+    }
+
+    start(preview).catch(() => {
+      if (signal.aborted) return;
+      stop();
+      handlers.current.failed("camera");
+    });
+    return stop;
   }, []);
-  return <video className="scanner" ref={video} autoPlay playsInline muted />;
+  return (
+    <>
+      <video className="scanner" ref={video} autoPlay playsInline muted />
+      <p className="hint" role="status">
+        {t("Point the camera at one barcode.", "เล็งกล้องไปที่บาร์โค้ดหนึ่งอัน")}
+      </p>
+    </>
+  );
 }
 export function StockEditor({
   existing,
@@ -141,6 +207,7 @@ export function StockEditor({
     [file, setFile] = useState<File | null>(null);
   const [queue, setQueue] = useState<Draft[]>([]),
     [hint, setHint] = useState(""),
+    [source, setSource] = useState<string | null>(null),
     [review, setReview] = useState(false);
   const [invalid, setInvalid] = useState<Record<string, string>>({});
   function change(field: keyof Draft, value: string) {
@@ -153,25 +220,43 @@ export function StockEditor({
     setMethod(m);
     setQueue([]);
     setHint("");
+    setSource(null);
     action.setError(null);
     setInvalid({});
   }
   function lookup(digits: string) {
     void action.run(async () => {
-      const data = await client.fetchQuery({
+      setCode(digits);
+      setScan(false);
+      const { data, source } = await client.fetchQuery({
         queryKey: ["barcodes", digits, lang],
-        queryFn: ({ signal }) =>
-          api<Barcode>(
+        queryFn: async ({ signal }) => {
+          let source: string | null = null;
+          const data = await api<Barcode>(
             "barcodes/" + digits + "?language=" + lang,
             "GET",
             undefined,
-            { signal },
-          ),
+            {
+              signal,
+              onHeaders: (headers) => {
+                const url = headers.get("X-Barcode-Source");
+                if (url && /^https?:\/\//i.test(url)) source = url;
+              },
+            },
+          );
+          return { data, source };
+        },
         staleTime: 5 * 60_000,
       });
-      setHint([data.brands, data.package_size].filter(Boolean).join(" · "));
+      const size =
+        data.Quantity != null && data.Unit
+          ? `${data.Quantity} ${data.Unit}`
+          : null;
+      setHint([data.brands, size].filter(Boolean).join(" · "));
+      setSource(source);
       setDraft({
         ...blank,
+        ...packageMeasurement(data.Quantity, data.Unit),
         name: data.name || "",
         name_en: data.name_en || "",
         name_th: data.name_th || "",
@@ -233,7 +318,6 @@ export function StockEditor({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            setScan(false);
             lookup(code);
           }}
         >
@@ -252,13 +336,10 @@ export function StockEditor({
             </label>
             {scan && (
               <Scanner
-                found={(digits) => {
+                found={lookup}
+                failed={(code) => {
                   setScan(false);
-                  setCode(digits);
-                }}
-                failed={() => {
-                  setScan(false);
-                  action.setError("camera");
+                  action.setError(code);
                 }}
               />
             )}
@@ -379,6 +460,14 @@ export function StockEditor({
                   <>
                     <br />
                     {hint}
+                  </>
+                )}
+                {source && (
+                  <>
+                    <br />
+                    <a href={source} target="_blank" rel="noreferrer">
+                      {t("Product source", "แหล่งข้อมูลสินค้า")}
+                    </a>
                   </>
                 )}
               </p>

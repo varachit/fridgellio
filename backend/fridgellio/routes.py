@@ -7,7 +7,14 @@ from sqlalchemy import or_, select, update
 from starlette.concurrency import run_in_threadpool
 
 from .auth import router as auth_router
-from .barcodes import BARCODE_PATTERN, decode_barcode, lookup_barcode
+from .auth import take_attempt
+from .barcodes import (
+    BARCODE_PATTERN,
+    decode_barcode,
+    lookup_barcode,
+    search_barcode,
+    verified_barcode,
+)
 from .data import CurrentAccount, Member, Session, owned_stock, stock_view
 from .errors import ApiError, responses
 from .households import router as households_router
@@ -340,12 +347,29 @@ async def decode_barcode_photo(
 async def barcode(
     code: Annotated[str, Path(pattern=BARCODE_PATTERN, examples=["0881234567890"])],
     request: Request,
+    response: Response,
     account: CurrentAccount,
     session: Session,
     language: Language | None = None,
 ) -> BarcodeView:
     locale = language or account.language
-    await session.rollback()
+    verified = verified_barcode(code, locale)
+    if verified is not None:
+        await session.rollback()
+        product, source = verified
+        response.headers["X-Barcode-Source"] = source
+        return product
+    openai_client = request.app.state.openai_client
+    if openai_client is None:
+        await session.rollback()
+    else:
+        allowed = await take_attempt(session, f"barcode:web:{account.id}", 30)
+        await session.commit()
+        result = await search_barcode(openai_client, code, locale) if allowed else None
+        if result is not None:
+            product, source = result
+            response.headers["X-Barcode-Source"] = str(source)
+            return product
     return await lookup_barcode(request.app.state.barcode_client, code, locale)
 
 

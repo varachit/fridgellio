@@ -111,6 +111,10 @@ const errors: Record<string, [string, string]> = {
     "Couldn’t open the camera. Check permission or type the barcode.",
     "เปิดกล้องไม่ได้ ตรวจสอบสิทธิ์หรือพิมพ์บาร์โค้ด",
   ],
+  barcode_frame_unavailable: [
+    "Couldn’t capture a camera image. Try again or type the barcode digits.",
+    "จับภาพจากกล้องไม่ได้ ลองใหม่หรือพิมพ์เลขบาร์โค้ด",
+  ],
   photo: [
     "Photo analysis is unavailable. Try again later or add the item manually.",
     "ยังวิเคราะห์รูปไม่ได้ ลองภายหลังหรือกรอกเอง",
