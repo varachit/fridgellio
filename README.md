@@ -44,6 +44,26 @@ See [Authentication operations](docs/backend-stack.md#authentication-operations)
 
 From `backend/`, run `uv run ruff check .`, `uv run ruff format --check .`, and `uv run pytest`. Set `FRIDGELLIO_TEST_DATABASE_URL` to also run the PostgreSQL tests. The test role needs permission to create a temporary schema.
 
+### Try the OpenAI Responses API
+
+Set `OPENAI_API_KEY` in the repository root `.env` using a key from your OpenAI project. Restart the backend after changing the key. [OpenAI API keys](https://platform.openai.com/api-keys)
+
+Run the following command from `backend/` to make a test request.
+
+```sh
+uv run --locked --env-file ../.env python - <<'PY'
+from openai import OpenAI
+
+with OpenAI() as client:
+    response = client.responses.create(
+        model="gpt-5.4-mini",
+        input="Reply with OK.",
+        store=False,
+    )
+    print(response.output_text)
+PY
+```
+
 ## Run the frontend
 
 Start the backend first, then open a second terminal with Node.js 22.18 or later and pnpm 10. On a new checkout, copy the frontend environment example to `frontend/.env.local` and set `NEXTAUTH_SECRET` to the output of `openssl rand -base64 32`. [Frontend environment example](frontend/.env.example)
