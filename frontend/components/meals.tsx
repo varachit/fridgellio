@@ -141,10 +141,14 @@ function SavedMenus() {
 }
 
 export function Meals({
+  preview,
+  showPreview,
   stock,
   day,
   add,
 }: {
+  preview: RecommendationPreview | null;
+  showPreview: (preview: RecommendationPreview) => void;
   stock: Stock[];
   day: string;
   add: () => void;
@@ -153,7 +157,6 @@ export function Meals({
   const labels = useLabels();
   const foods = useQuery(foodsQuery);
   const equipment = useQuery(equipmentQuery);
-  const [preview, setPreview] = useState<RecommendationPreview | null>(null);
   const previewHeading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (preview) previewHeading.current?.focus();
@@ -200,7 +203,7 @@ export function Meals({
             stock={stock}
             day={day}
             add={add}
-            showPreview={setPreview}
+            showPreview={showPreview}
           />
         ) : (
           !problem && <Busy />

@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createIllustrationModel, disposeModel } from './scenes.js';
 
-for (const variant of ['landing', 'dashboard']) {
+for (const variant of ['landing', 'dashboard', 'groceries']) {
   const source = createIllustrationModel(variant);
   const file = await readFile(new URL(`./models/fridgellio-${variant}.glb`, import.meta.url));
   assert.equal(file.readUInt32LE(0), 0x46546c67, 'GLB header');
@@ -14,7 +14,7 @@ for (const variant of ['landing', 'dashboard']) {
   const loaded = await new GLTFLoader().parseAsync(data, '');
   const rigNames = variant === 'landing'
     ? ['refrigerator', 'fridge-door-upper', 'fridge-door-lower', 'fridge-food', 'fridge-carrot', 'bowl-food']
-    : ['vegetable-bowl', 'bowl-food'];
+    : variant === 'groceries' ? ['grocery-bag', 'grocery-bag-food'] : ['vegetable-bowl', 'bowl-food'];
   for (const name of rigNames) assert.ok(loaded.scene.getObjectByName(name), `Export preserves interaction group: ${name}`);
   const expected = new THREE.Box3().setFromObject(source);
   const actual = new THREE.Box3().setFromObject(loaded.scene);

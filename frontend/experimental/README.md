@@ -1,6 +1,6 @@
 # Fridgellio 3D Illustrations
 
-Two original procedural Three.js models for the proposed landing page and dashboard. Both use rounded geometry, matte materials, soft lighting, and Emerald / cream colors. No external textures, model downloads, or component libraries are used. Preview link arrows use Lucide ArrowUpRight paths under the accompanying [Lucide license](../../assets/brand/LUCIDE-LICENSE.txt).
+Three original procedural Three.js models for the landing page, dashboard, and inventory. They use rounded geometry, matte materials, soft lighting, and Emerald / cream colors. No external textures, model downloads, or component libraries are used. Preview link arrows use Lucide ArrowUpRight paths under the accompanying [Lucide license](../../assets/brand/LUCIDE-LICENSE.txt).
 
 The Next.js app uses these illustration assets on its public entry screens and in inventory. This directory also contains the standalone design preview. The preview contains editorial copy rather than live pantry data.
 
@@ -12,11 +12,13 @@ The surrounding UI uses the installed Motion package (Framer Motion) for stagger
 | --- | --- | --- |
 | [Landing GLB](models/fridgellio-landing.glb) | Mint refrigerator, grocery bag, leafy vegetables, tomatoes, carrots, and a bowl on a wooden board | Main landing-page illustration; optional subtle motion |
 | [Dashboard GLB](models/fridgellio-dashboard.glb) | Prepared vegetable bowl, board, eggs, tomato, and carrot | Compact dashboard welcome or empty-state illustration; static by default |
+| [Groceries GLB](models/fridgellio-groceries.glb) | Open paper bag with handles, leafy greens, carrots, tomatoes, and bread | Plain Inventory heading; one small hover or tap hop |
 
 The source of truth is [scenes.js](scenes.js). GLB files contain geometry, materials, and named door/ingredient groups, not the preview camera, lighting, animation, or HTML. Use them in another Three.js scene or a glTF-compatible editor. The supplied renderer builds models directly from source so it needs no GLB network request.
 
 ## Hover interactions
 
+- Hover or tap the Inventory grocery bag for one finite hop of up to 0.085 model units. The whole bag and its contents move together, return to their original pose, and stop rendering when settled. Reduced motion leaves the bag still. See the [rendered bag preview](previews/groceries.png) and the application's [WebP fallback](../public/illustrations/groceries.webp).
 - Hover over the refrigerator to open both doors around their right-hand hinges. The hollow cabinet reveals stocked shelves with greens, carrots, tomatoes, containers, and eggs. Food makes one small hop after the doors start opening. Leaving closes the doors smoothly, including when opening is interrupted.
 - Hover over the dashboard board or its food to give only the bowl's ingredients a short, staggered hop. The bowl, board, and loose ingredients stay still. The hop settles even if the pointer remains over the model; re-entering plays it again.
 - Picking uses Three.js raycasting against model geometry. Empty canvas space does not trigger an interaction. The original cabinet area remains active as moving doors reveal gaps, avoiding hover flicker.
@@ -46,7 +48,7 @@ node --check frontend/experimental/scenes.js
 node --check frontend/experimental/illustration.js
 ```
 
-The model check loads both GLB exports back with `GLTFLoader`, compares their bounds to the source, checks vertex coordinates, and enforces a 2 MB limit per model. The hover check verifies opening and interrupted closing, small finite hops, return to rest, and reduced-motion behavior. These checks do not replace visual or browser lifecycle checks.
+The model check loads all three GLB exports back with `GLTFLoader`, compares their bounds to the source, checks vertex coordinates, and enforces a 2 MB limit per model. The hover check verifies opening and interrupted closing, small finite hops, return to rest, and reduced-motion behavior. These checks do not replace visual or browser lifecycle checks.
 
 ## Integration
 
@@ -56,7 +58,7 @@ Import [illustration.js](illustration.js) in browser code and mount into an elem
 import { mountIllustration } from './illustration.js';
 
 const illustration = mountIllustration(host, {
-  variant: 'landing', // or 'dashboard'
+  variant: 'landing', // or 'dashboard' / 'groceries'
   animate: true, // dashboard defaults to false when this option is omitted
 });
 

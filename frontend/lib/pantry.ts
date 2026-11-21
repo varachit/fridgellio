@@ -57,6 +57,18 @@ export const localDay = (day = new Date()) =>
 export function displayName(item: Stock, lang: Language) {
   return item[lang === "th" ? "name_th" : "name_en"] || item.name;
 }
+export function expiredEntries(stock: Stock[], day: string) {
+  return stock
+    .filter(
+      (item) =>
+        Number(item.quantity) > 0 && item.expiry_date && item.expiry_date < day,
+    )
+    .sort(
+      (a, b) =>
+        a.expiry_date!.localeCompare(b.expiry_date!) ||
+        a.id.localeCompare(b.id),
+    );
+}
 export function validDate(day: string) {
   if (!day) return true;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day.startsWith("0000")) return false;

@@ -152,7 +152,9 @@ export function Inventory({
             ),
             t("Nothing due in this period", "ไม่มีรายการที่ครบกำหนดในช่วงนี้"),
           )}
-          <h2>{labels.past_date}</h2>
+          <h2 id="past-date-groceries" tabIndex={-1}>
+            {labels.past_date}
+          </h2>
           {list(
             matches.filter((s) => s.expiry_status === "past_date"),
             t("No past-date groceries", "ไม่มีอาหารที่เลยวันที่ระบุ"),

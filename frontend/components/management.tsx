@@ -1,20 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Leaf } from "lucide-react";
+import { Plus, Leaf, Globe } from "lucide-react";
 import { api, errorCode, ApiError } from "@/lib/api";
 import { foodsQuery } from "@/lib/queries";
 import { EquipmentPicker } from "./equipment-picker";
 import { ProfileSettings } from "./profile-settings";
 import type { Named } from "@/lib/pantry";
-import {
-  Dialog,
-  Message,
-  Busy,
-  Retry,
-  useAction,
-  useText,
-} from "./ui";
+import { LanguageSelect } from "./language-select";
+import { Dialog, Message, Busy, Retry, useAction, useText } from "./ui";
 
 const foodPath = "preferences/foods-to-avoid";
 function FoodsToAvoid() {
@@ -129,10 +123,30 @@ function FoodsToAvoid() {
     </section>
   );
 }
-export function SettingsView({ username }: { username: string }) {
+export function SettingsView({
+  changeLanguage,
+  languageBusy,
+}: {
+  changeLanguage: () => void;
+  languageBusy: boolean;
+}) {
+  const { t } = useText();
   return (
     <div className="panels">
-      <ProfileSettings username={username} />
+      <ProfileSettings />
+      <section className="panel" aria-labelledby="settings-language-title">
+        <h2 id="settings-language-title">
+          <Globe aria-hidden="true" />
+          {t("Language", "ภาษา")}
+        </h2>
+        <p>
+          {t(
+            "Choose the language you prefer for Fridgellio.",
+            "เลือกภาษาที่ต้องการใช้ใน Fridgellio",
+          )}
+        </p>
+        <LanguageSelect change={changeLanguage} disabled={languageBusy} />
+      </section>
       <FoodsToAvoid />
       <EquipmentPicker />
     </div>

@@ -15,7 +15,7 @@ if (!globalThis.FileReader) {
   };
 }
 await mkdir(new URL('./models/', import.meta.url), { recursive: true });
-for (const variant of ['landing', 'dashboard']) {
+for (const variant of ['landing', 'dashboard', 'groceries']) {
   const model = createIllustrationModel(variant);
   try {
     const data = await new GLTFExporter().parseAsync(model, { binary: true, onlyVisible: true });
