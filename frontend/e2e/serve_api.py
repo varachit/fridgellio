@@ -14,6 +14,7 @@ with admin.begin() as connection:
     connection.execute(CreateSchema(schema))
 try:
     os.environ["DATABASE_URL"] = scoped.render_as_string(hide_password=False)
+    os.environ["OPENAI_API_KEY"] = ""
     command.upgrade(Config("alembic.ini"), "head")
     uvicorn.run(
         "fridgellio.main:create_app",

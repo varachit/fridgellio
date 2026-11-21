@@ -559,7 +559,11 @@ def test_saved_menus_are_private_and_bilingual(client, database):
     assert client.get("/api/menus").status_code == 401
 
 
-def test_recommendation_preview_resolves_settings_and_filters_stock(client, household_accounts):
+def test_recommendation_preview_resolves_settings_and_filters_stock(
+    client, household_accounts, monkeypatch
+):
+    from fridgellio import recommendations
+
     owner, member, outsider = household_accounts
     route = "/api/menus/recommendations"
     today = {"today": "2026-06-10"}
@@ -653,3 +657,30 @@ def test_recommendation_preview_resolves_settings_and_filters_stock(client, hous
         {"dietary_styles": ["  "]},
     ):
         assert client.post(route, headers=owner, json=invalid).status_code == 422
+
+    async def suggest(_, preview):
+        reference = next(
+            index for index, item in enumerate(preview.ingredients) if item.unit == "g"
+        )
+        return recommendations.RecipeSuggestions.model_validate(
+            {
+                "recipes": [
+                    {
+                        "name": {"en": "Cooked spinach", "th": "ผักโขมปรุงสุก"},
+                        "ingredients": [{"reference": reference, "quantity": "75"}],
+                        "equipment": ["Stove"],
+                        "steps": [{"en": "Cook the spinach.", "th": "ปรุงผักโขมให้สุก"}],
+                        "minutes": 10,
+                        "difficulty": "easy",
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(client.app.state, "openai_client", object())
+    monkeypatch.setattr(recommendations, "generate_suggestions", suggest)
+    generated = client.post(route, json={**today, "generate": True}, headers=owner)
+    assert generated.status_code == 200, generated.json()
+    assert generated.json()["status"] == "generated"
+    assert len(generated.json()["recipes"]) == 1
+    assert generated.json()["recipes"][0]["ingredients"][0]["quantity"] == "75"

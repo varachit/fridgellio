@@ -33,13 +33,21 @@ export type MealPreferences = {
   equipment: string[];
 };
 export type RecommendationPreview = {
-  status: "preview";
+  status: "preview" | "generated";
   recipe_limit: 5;
   preferences: MealPreferences;
   ingredients: Pick<
     Stock,
     "name" | "name_en" | "name_th" | "unit" | "quantity"
   >[];
+  recipes: {
+    name: Localized;
+    ingredients: { name: Localized; quantity: string; unit: Stock["unit"] }[];
+    equipment: string[];
+    steps: Localized[];
+    minutes: number;
+    difficulty: Exclude<keyof typeof difficulties, "any">;
+  }[];
 };
 
 export function translatedNames(

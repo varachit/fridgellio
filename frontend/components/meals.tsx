@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { errorCode } from "@/lib/api";
+import { ImageOff } from "lucide-react";
+import { api, errorCode } from "@/lib/api";
 import { equipmentQuery, foodsQuery, menusQuery } from "@/lib/queries";
 import type { Stock } from "@/lib/pantry";
 import {
@@ -16,6 +17,58 @@ import {
 import { MealForm } from "./meal-form";
 import { equipmentPresets } from "./equipment-picker";
 import { Busy, Message, Retry, useLabels, useText } from "./ui";
+
+function RecipeIllustration({
+  recipe,
+}: {
+  recipe: RecommendationPreview["recipes"][number];
+}) {
+  const { lang, t } = useText();
+  const name = recipe.name.en;
+  const ingredients = [
+    ...new Set(recipe.ingredients.map((item) => item.name.en)),
+  ]
+    .sort()
+    .slice(0, 30);
+  const image = useQuery({
+    queryKey: ["recipe-image", name, ingredients],
+    queryFn: ({ signal }) =>
+      api<{ webp_base64: string }>(
+        "menus/recommendations/image",
+        "POST",
+        { name, ingredients },
+        { signal },
+      ),
+    retry: false,
+    staleTime: Infinity,
+    refetchOnMount: false,
+  });
+  const description = t(
+    `AI illustration of ${recipe.name[lang]}`,
+    `ภาพประกอบเมนู ${recipe.name[lang]} สร้างโดย AI`,
+  );
+
+  return image.data ? (
+    <img
+      className="recipe-illustration"
+      src={`data:image/webp;base64,${image.data.webp_base64}`}
+      width={1536}
+      height={1024}
+      alt={description}
+    />
+  ) : (
+    <div className="recipe-illustration recipe-image-status" role="status">
+      {image.isPending ? (
+        t("Generating illustration…", "กำลังสร้างภาพประกอบ…")
+      ) : (
+        <>
+          <ImageOff size={20} aria-hidden="true" />
+          {t("Illustration unavailable", "ภาพประกอบไม่พร้อมใช้งาน")}
+        </>
+      )}
+    </div>
+  );
+}
 
 function SavedMenus() {
   const { t, lang } = useText();
@@ -158,17 +211,61 @@ export function Meals({
         aria-labelledby="meal-preview-title"
       >
         <h2 id="meal-preview-title" ref={previewHeading} tabIndex={-1}>
-          {t("Request preview", "ตัวอย่างคำขอเมนู")}
+          {preview?.status === "preview"
+            ? t("Request preview", "ตัวอย่างคำขอเมนู")
+            : t("Recommended recipes", "เมนูแนะนำ")}
         </h2>
         {preview ? (
           <>
             <p>
               {t(
-                `Request prepared for ${preview.preferences.servings} ${preview.preferences.servings === 1 ? "serving" : "servings"}, up to ${preview.recipe_limit} recipes. AI recipe generation is coming in a later version.`,
-                `เตรียมคำขอสำหรับ ${preview.preferences.servings} ที่ สูงสุด ${preview.recipe_limit} เมนูแล้ว ระบบจะสร้างสูตรอาหารด้วย AI ได้ในเวอร์ชันถัดไป`,
+                `Recipes for ${preview.preferences.servings} ${preview.preferences.servings === 1 ? "serving" : "servings"} · Up to ${preview.recipe_limit} recipes`,
+                `สำหรับ ${preview.preferences.servings} ที่ · สูงสุด ${preview.recipe_limit} เมนู`,
               )}
             </p>
             {conditions && <p>{conditions}</p>}
+            {preview.status === "preview" && (
+              <p role="status">
+                {t(
+                  "Recipe generation is not configured. You can review the available ingredients below.",
+                  "ยังไม่ได้เปิดใช้การสร้างเมนู ดูวัตถุดิบที่ใช้ได้ด้านล่าง",
+                )}
+              </p>
+            )}
+            {preview.status === "generated" && !preview.recipes.length && (
+              <Message code="no_suitable_menu" />
+            )}
+            {preview.recipes.map((recipe) => (
+              <article className="dish" key={recipe.name.en}>
+                <h3>{recipe.name[lang]}</h3>
+                <RecipeIllustration recipe={recipe} />
+                <p>
+                  {t(`${recipe.minutes} min`, `${recipe.minutes} นาที`)} ·{" "}
+                  {difficulties[recipe.difficulty][lang]}
+                </p>
+                <h4>{t("Ingredients", "วัตถุดิบ")}</h4>
+                <ul>
+                  {recipe.ingredients.map((ingredient, index) => (
+                    <li key={index}>
+                      {ingredient.name[lang]} · {ingredient.quantity}{" "}
+                      {labels[ingredient.unit]}
+                    </li>
+                  ))}
+                </ul>
+                {recipe.equipment.length > 0 && (
+                  <p>
+                    <strong>{t("Equipment", "อุปกรณ์")} </strong>
+                    {translatedNames(recipe.equipment, equipmentPresets, lang)}
+                  </p>
+                )}
+                <h4>{t("Cooking steps", "วิธีทำ")}</h4>
+                <ol>
+                  {recipe.steps.map((step, index) => (
+                    <li key={index}>{step[lang]}</li>
+                  ))}
+                </ol>
+              </article>
+            ))}
             <dl className="meal-summary">
               <dt>{t("Available equipment", "อุปกรณ์ที่ใช้ได้")}</dt>
               <dd>
@@ -220,8 +317,8 @@ export function Meals({
             />
             <p>
               {t(
-                "Generate a menu to review your preferences and available ingredients. AI recipes are coming in a later version.",
-                "กดสร้างเมนูเพื่อดูตัวเลือกและวัตถุดิบที่ใช้ได้ สูตรอาหารจาก AI จะมีในเวอร์ชันถัดไป",
+                "Generate up to five recipes from your pantry and selected equipment.",
+                "สร้างเมนูได้สูงสุด 5 รายการจากวัตถุดิบในคลังและอุปกรณ์ที่เลือก",
               )}
             </p>
           </>

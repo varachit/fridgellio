@@ -155,6 +155,10 @@ const errors: Record<string, [string, string]> = {
     "No suitable menu was found. Try different ingredients or equipment.",
     "ไม่พบเมนูที่เหมาะสม ลองเปลี่ยนวัตถุดิบหรืออุปกรณ์",
   ],
+  menu_rate_limited: [
+    "Too many recipe requests. Try again shortly.",
+    "ขอเมนูถี่เกินไป กรุณาลองใหม่ในอีกสักครู่",
+  ],
   invalid_menu: [
     "The menu could not be validated. Try again.",
     "ตรวจสอบเมนูไม่สำเร็จ กรุณาลองอีกครั้ง",
