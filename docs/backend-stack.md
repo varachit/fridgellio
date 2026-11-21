@@ -1,6 +1,6 @@
 # Fridgellio backend stack
 
-The backend lives in `backend/` and uses FastAPI. PostgreSQL stores household memberships, shared stock entries, inventory history, and equipment. Each account owns its language preference and **Foods to avoid** list. FastAPI searches the web for barcodes with OpenAI and uses Open Food Facts as a fallback. Meal requests use a local preview endpoint. Photo analysis and menu generation return `501 ai_not_implemented` while OpenAI integration is deferred. The migration includes storage for account-owned bilingual menus. See the [product requirements](requirements.md) and [backend checklist](backend-todo.md).
+The backend lives in `backend/` and uses FastAPI. PostgreSQL stores household memberships, shared stock entries, inventory history, and equipment. Each account owns its language preference and **Foods to avoid** list. FastAPI searches the web for barcodes with OpenAI and uses Open Food Facts as a fallback. Meal requests can generate bilingual recipe recommendations. Photo analysis returns `501 ai_not_implemented`. The migration includes storage for account-owned bilingual menus. See the [product requirements](requirements.md) and [backend checklist](backend-todo.md).
 
 ## Runtime dependencies
 
@@ -37,7 +37,7 @@ FastAPI manages Fridgellio accounts and issues opaque session tokens. NextAuthâ€
 - Update the remaining quantity and insert the usage or discard event in one transaction. Use an atomic conditional update to reject deductions that would take stock below zero, including concurrent requests. [PostgreSQL transactions](https://www.postgresql.org/docs/current/tutorial-transactions.html)
 - Clients can reuse an `Idempotency-Key` when retrying a usage or discard request. For the same member and stock entry, a matching retry returns the existing event and current stock with `200`. Reusing a key with a different deduction returns `409`.
 - For expiry classification, the frontend supplies the user's local calendar date as `today`. The API defaults to UTC when omitted.
-- `POST /api/menus/recommendations` resolves the pantry, equipment, and food exclusions for this request and returns available quantities. V1 previews the inputs locally. When AI generation is implemented, release the database connection while waiting for OpenAI and recheck membership, stock, equipment, and settings before saving the menu.
+- `POST /api/menus/recommendations` resolves the pantry, equipment, and food exclusions for this request and returns available quantities. With `generate: true` and OpenAI configured, the endpoint releases the database connection while waiting for a model result, rechecks membership and eligible inputs, and returns up to five validated recipe cards.
 
 ## Validation
 

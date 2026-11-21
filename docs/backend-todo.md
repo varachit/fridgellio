@@ -11,7 +11,7 @@
 - [x] Implement shared equipment and private English or Thai language and Foods to avoid settings.
 - [x] Implement OpenAI web search for barcodes with Open Food Facts as a fallback.
 - [x] Decode numeric barcodes from uploaded camera stills.
-- [x] Preview pantry-only recipe requests with per-request preferences and compatible stock totals.
+- [x] Generate up to five pantry-only recipes with per-request preferences and compatible stock totals.
 - [x] Add typed photo-analysis and menu-generation placeholders that return `501`.
 
 ## API contract
@@ -30,7 +30,7 @@
 | `PATCH /api/inventory/{entry_id}`, `DELETE /api/inventory/{entry_id}` | Edit or remove an owned entry. Keep recorded history. |
 | `GET /api/inventory/{entry_id}/events`, `POST /api/inventory/{entry_id}/events` | Read history or record a usage or discard. |
 | `GET /api/inventory-history` | Read household usage and discard events, including entries that were depleted or removed. |
-| `POST /api/menus/recommendations` | Prepare a request for up to five recipes using the member’s household stock. Returns `status: preview`, the recipe limit, effective preferences, and ingredient quantities. Omit equipment or exclusions to use saved settings, or send an empty list to clear that setting for the request. |
+| `POST /api/menus/recommendations` | Use `generate: true` to return up to five validated recipes with `status: generated`. Otherwise return a preview with the recipe limit, effective preferences, and ingredient quantities. An unconfigured OpenAI client returns a preview. Omit equipment or exclusions to use saved settings, or send an empty list to clear that setting for the request. |
 | `GET /api/menus` | List the signed-in member’s saved bilingual menus, newest first. |
 | `GET /api/equipment`, `POST /api/equipment` | List or add equipment. |
 | `PATCH /api/equipment/{equipment_id}`, `DELETE /api/equipment/{equipment_id}` | Edit or remove owned equipment. |
@@ -71,4 +71,4 @@ The response includes `recipe_limit: 5` and pantry quantities in whole items, gr
 
 ## Deferred AI work
 
-- [ ] Connect OpenAI for bilingual photo suggestions and menu generation. Validate eligibility, compatible quantities across dishes, equipment, translations, and the current inventory before saving menus.
+- [ ] Connect OpenAI for bilingual photo suggestions.

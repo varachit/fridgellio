@@ -158,17 +158,60 @@ export function Meals({
         aria-labelledby="meal-preview-title"
       >
         <h2 id="meal-preview-title" ref={previewHeading} tabIndex={-1}>
-          {t("Request preview", "ตัวอย่างคำขอเมนู")}
+          {preview?.status === "preview"
+            ? t("Request preview", "ตัวอย่างคำขอเมนู")
+            : t("Recommended recipes", "เมนูแนะนำ")}
         </h2>
         {preview ? (
           <>
             <p>
               {t(
-                `Request prepared for ${preview.preferences.servings} ${preview.preferences.servings === 1 ? "serving" : "servings"}, up to ${preview.recipe_limit} recipes. AI recipe generation is coming in a later version.`,
-                `เตรียมคำขอสำหรับ ${preview.preferences.servings} ที่ สูงสุด ${preview.recipe_limit} เมนูแล้ว ระบบจะสร้างสูตรอาหารด้วย AI ได้ในเวอร์ชันถัดไป`,
+                `Recipes for ${preview.preferences.servings} ${preview.preferences.servings === 1 ? "serving" : "servings"} · Up to ${preview.recipe_limit} recipes`,
+                `สำหรับ ${preview.preferences.servings} ที่ · สูงสุด ${preview.recipe_limit} เมนู`,
               )}
             </p>
             {conditions && <p>{conditions}</p>}
+            {preview.status === "preview" && (
+              <p role="status">
+                {t(
+                  "Recipe generation is not configured. You can review the available ingredients below.",
+                  "ยังไม่ได้เปิดใช้การสร้างเมนู ดูวัตถุดิบที่ใช้ได้ด้านล่าง",
+                )}
+              </p>
+            )}
+            {preview.status === "generated" && !preview.recipes.length && (
+              <Message code="no_suitable_menu" />
+            )}
+            {preview.recipes.map((recipe) => (
+              <article className="dish" key={recipe.name.en}>
+                <h3>{recipe.name[lang]}</h3>
+                <p>
+                  {t(`${recipe.minutes} min`, `${recipe.minutes} นาที`)} ·{" "}
+                  {difficulties[recipe.difficulty][lang]}
+                </p>
+                <h4>{t("Ingredients", "วัตถุดิบ")}</h4>
+                <ul>
+                  {recipe.ingredients.map((ingredient, index) => (
+                    <li key={index}>
+                      {ingredient.name[lang]} · {ingredient.quantity}{" "}
+                      {labels[ingredient.unit]}
+                    </li>
+                  ))}
+                </ul>
+                {recipe.equipment.length > 0 && (
+                  <p>
+                    <strong>{t("Equipment", "อุปกรณ์")} </strong>
+                    {translatedNames(recipe.equipment, equipmentPresets, lang)}
+                  </p>
+                )}
+                <h4>{t("Cooking steps", "วิธีทำ")}</h4>
+                <ol>
+                  {recipe.steps.map((step, index) => (
+                    <li key={index}>{step[lang]}</li>
+                  ))}
+                </ol>
+              </article>
+            ))}
             <dl className="meal-summary">
               <dt>{t("Available equipment", "อุปกรณ์ที่ใช้ได้")}</dt>
               <dd>
@@ -220,8 +263,8 @@ export function Meals({
             />
             <p>
               {t(
-                "Generate a menu to review your preferences and available ingredients. AI recipes are coming in a later version.",
-                "กดสร้างเมนูเพื่อดูตัวเลือกและวัตถุดิบที่ใช้ได้ สูตรอาหารจาก AI จะมีในเวอร์ชันถัดไป",
+                "Generate up to five recipes from your pantry and selected equipment.",
+                "สร้างเมนูได้สูงสุด 5 รายการจากวัตถุดิบในคลังและอุปกรณ์ที่เลือก",
               )}
             </p>
           </>

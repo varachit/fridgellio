@@ -161,16 +161,16 @@ export function MealForm({
   const [customGoal, setCustomGoal] = useState("");
   const [difficulty, setDifficulty] =
     useState<MealPreferences["difficulty"]>("any");
-  const [avoidText, setAvoidText] = useState(() =>
-    foods.map((item) => item.name).join("\n"),
-  );
-  const [tools] = useState(() => equipmentChoices(equipment));
-  const [gear, setGear] = useState<Selection>(() => ({
+  const [avoidedOverride, setAvoidedOverride] = useState<string | null>(null);
+  const [gearOverride, setGearOverride] = useState<Selection | null>(null);
+  const avoidText = avoidedOverride ?? foods.map((item) => item.name).join("\n");
+  const tools = equipmentChoices(equipment);
+  const gear = gearOverride ?? {
     names: tools.flatMap((choice) =>
       choice.saved.length ? [choice.saved[0].name] : [],
     ),
     other: null,
-  }));
+  };
 
   const avoided = avoidText
     .split("\n")
@@ -211,6 +211,7 @@ export function MealForm({
       showPreview(
         await api<RecommendationPreview>("menus/recommendations", "POST", {
           today: day,
+          generate: true,
           ...preferences,
         }),
       );
@@ -357,7 +358,7 @@ export function MealForm({
                 rows={2}
                 ref={avoidedField}
                 value={avoidText}
-                onChange={(e) => setAvoidText(e.target.value)}
+                onChange={(e) => setAvoidedOverride(e.target.value)}
                 aria-describedby="avoid-hint"
                 aria-invalid={tooLong || undefined}
               />
@@ -380,7 +381,7 @@ export function MealForm({
                 label: choice.name[lang],
               }))}
               selection={gear}
-              change={setGear}
+              change={setGearOverride}
               otherLabel={t("Other equipment", "ระบุอุปกรณ์อื่น ๆ")}
             />
           </PreferenceSection>
@@ -427,7 +428,7 @@ export function MealForm({
         >
           <ChefHat size={19} aria-hidden="true" />
           {action.busy
-            ? t("Preparing request…", "กำลังเตรียมคำขอ…")
+            ? t("Generating recipes…", "กำลังแนะนำเมนู…")
             : t("Generate menu", "สร้างเมนู")}
         </button>
         <Message code={action.error} />

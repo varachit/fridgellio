@@ -729,7 +729,7 @@ test("barcode review, pantry request preview, edit and removal", async ({
   await expect(page.getByText("Your pantry is empty")).toBeVisible();
 });
 
-test("reviews photo suggestions and previews a meal with personal overrides", async ({
+test("reviews photo suggestions and shows recipes with personal overrides", async ({
   page,
 }, info) => {
   await register(page, "photo" + suffix());
@@ -859,13 +859,32 @@ test("reviews photo suggestions and previews a meal with personal overrides", as
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "database is unavailable",
   );
+  await page.route("**/api/menus/recommendations", async (route) => {
+    expect(route.request().postDataJSON().generate).toBe(true);
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      json: {
+        ...(await response.json()),
+        status: "generated",
+        recipes: [
+          {
+            ...dish,
+            equipment: ["Microwave"],
+            minutes: 10,
+            difficulty: "easy",
+          },
+        ],
+      },
+    });
+  });
   const result = page.waitForResponse((response) =>
     response.url().endsWith("/api/menus/recommendations"),
   );
   await generate.click();
   const preview = await (await result).json();
   expect(preview).toMatchObject({
-    status: "preview",
+    status: "generated",
     recipe_limit: 5,
     preferences: {
       servings: 3,
@@ -880,14 +899,20 @@ test("reviews photo suggestions and previews a meal with personal overrides", as
     ingredients: [{ name_th: eggs.th, quantity: "6", unit: "each" }],
   });
   await expect(
-    page.getByRole("region", { name: "Request preview" }),
+    page.getByRole("region", { name: "Recommended recipes" }),
   ).toContainText("3 servings");
-  await expect(page.getByText(dish.steps[0].en)).toBeVisible();
-  await page.getByRole("button", { name: "Switch to Thai" }).click();
-  await expect(page.getByText(dish.steps[0].th)).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "ตัวอย่างคำขอเมนู" }),
-  ).toContainText("ไมโครเวฟ");
+    page
+      .getByRole("region", { name: "Recommended recipes" })
+      .getByText(dish.steps[0].en),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Switch to Thai" }).click();
+  await expect(
+    page.getByRole("region", { name: "เมนูแนะนำ" }).getByText(dish.steps[0].th),
+  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "เมนูแนะนำ" })).toContainText(
+    "ไมโครเวฟ",
+  );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
   expect(
