@@ -1,0 +1,14 @@
+{
+  "name": "@fridgellio/illustrations",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node generate-models.mjs",
+    "check": "node check-models.mjs && node check-hover.mjs"
+  },
+  "dependencies": {
+    "motion": "14.14.0",
+    "three": "0.187.0"
+  }
+}

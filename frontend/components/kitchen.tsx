@@ -1,5 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { Landing } from "./landing";
+import { Illustration } from "./illustration";
 import type { Session } from "next-auth";
 import { SessionProvider, useSession, signOut } from "next-auth/react";
 import {
@@ -16,7 +19,7 @@ import {
   Settings,
   LogOut,
   Menu as MenuIcon,
-  House,
+  X,
   UsersRound,
 } from "lucide-react";
 import { api, ApiError, errorCode } from "@/lib/api";
@@ -79,27 +82,39 @@ export function Kitchen({
 
 function KitchenSession({ expired }: { expired: boolean }) {
   const { data: session } = useSession();
+  const pathname = usePathname();
   const { lang, setLanguage } = useLanguage();
   const [showExpired, setShowExpired] = useState(expired);
   const accountId = session?.user.id;
   useEffect(() => {
-    if (!accountId) return;
+    if (!accountId) {
+      if (pathname === "/" && pages.includes(location.hash.slice(1) as Page))
+        history.replaceState(null, "", "/sign-in" + location.hash);
+      return;
+    }
+    if (pathname !== "/") history.replaceState(null, "", "/" + location.hash);
     setShowExpired(false);
     // A new login in another tab may already have replaced this cookie. Recheck
     // the current session on the server without signing out the new account.
     const recheck = () =>
-      window.location.replace("/?expired=1" + location.hash);
+      window.location.replace("/sign-in?expired=1" + location.hash);
     window.addEventListener("session-ended", recheck, { once: true });
     return () => window.removeEventListener("session-ended", recheck);
-  }, [accountId]);
-  if (!session)
+  }, [accountId, pathname]);
+  if (!session) {
+    const flip = () => setLanguage(lang === "en" ? "th" : "en");
+    if (pathname === "/" && !showExpired)
+      return <Landing changeLanguage={flip} />;
     return (
-      <AccessFrame
-        changeLanguage={() => setLanguage(lang === "en" ? "th" : "en")}
-      >
-        <SignIn expired={showExpired} />
+      <AccessFrame changeLanguage={flip}>
+        <SignIn
+          key={pathname}
+          create={pathname === "/register"}
+          expired={showExpired}
+        />
       </AccessFrame>
     );
+  }
   return <MemberProvider key={session.user.id} account={session.user} />;
 }
 
@@ -148,7 +163,7 @@ function MemberKitchen({ account }: { account: Account }) {
       });
       if (!result?.url || new URL(result.url).pathname !== "/")
         throw new ApiError("service_unavailable");
-      history.replaceState(null, "", location.pathname);
+      history.replaceState(null, "", "/");
     });
   const problem = errorCode(household.error || preferences.error);
   if (!household.data || !preferences.data)
@@ -226,14 +241,16 @@ function Workspace({
 }) {
   const { t } = useText();
   const [page, setPage] = useState<Page>("pantry"),
-    [open, setOpen] = useState(false),
+    [menuOpen, setMenuOpen] = useState(false),
     [adding, setAdding] = useState(false);
   const [day, setDay] = useState(localDay),
     [notice, setNotice] = useState(false);
+  const menu = useRef<HTMLDialogElement>(null);
+  const content = useRef<HTMLElement>(null);
   useEffect(() => {
     const sync = () => {
       setPage(hashPage());
-      setOpen(false);
+      menu.current?.close();
       setAdding(false);
       setNotice(false);
     };
@@ -241,6 +258,18 @@ function Workspace({
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);
   }, []);
+  useEffect(() => {
+    const drawer = menu.current;
+    if (!menuOpen || !drawer) return;
+    const desktop = window.matchMedia("(min-width: 56rem)");
+    const closeOnDesktop = () => {
+      if (desktop.matches) drawer.close();
+    };
+    drawer.showModal();
+    closeOnDesktop();
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, [menuOpen]);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
@@ -277,6 +306,32 @@ function Workspace({
     { page: "settings", icon: Settings, title: t("Settings", "การตั้งค่า") },
   ];
   const title = links.find((link) => link.page === page)!.title;
+  const navigation = (
+    <nav className="workspace-nav" aria-label={t("Navigation", "เมนูนำทาง")}>
+      {links.map((link) => (
+        <a
+          key={link.page}
+          href={"#" + link.page}
+          onClick={() => {
+            if (menu.current?.open) {
+              menu.current.close();
+              content.current?.focus();
+            }
+          }}
+          aria-current={link.page === page ? "page" : undefined}
+        >
+          <link.icon size={19} aria-hidden="true" />
+          {link.title}
+        </a>
+      ))}
+    </nav>
+  );
+  const signOutButton = (
+    <button type="button" disabled={busy} className="plain" onClick={logout}>
+      <LogOut size={17} aria-hidden="true" />
+      {t("Sign out", "ออกจากระบบ")}
+    </button>
+  );
   return (
     <div className="workspace">
       <a
@@ -284,57 +339,77 @@ function Workspace({
         href="#content"
         onClick={(e) => {
           e.preventDefault();
-          document.getElementById("content")?.focus();
+          content.current?.focus();
         }}
       >
         {t("Skip to content", "ข้ามไปเนื้อหา")}
       </a>
-      <aside className="sidebar">
-        <div className="side-top">
-          <Brand />
-          <button
-            className="icon mobile-nav"
-            aria-label={t("Navigation", "เมนูนำทาง")}
-            aria-expanded={open}
-            aria-controls="side-nav"
-            onClick={() => setOpen(!open)}
-          >
-            <MenuIcon />
-          </button>
-        </div>
-        <div className={"side-body " + (open ? "opened" : "")} id="side-nav">
-          <nav>
-            {links.map((link) => (
-              <a
-                key={link.page}
-                href={"#" + link.page}
-                onClick={() => setOpen(false)}
-                aria-current={link.page === page ? "page" : undefined}
-              >
-                <link.icon size={19} />
-                {link.title}
-              </a>
-            ))}
-          </nav>
-          <div className="side-bottom">
-            <SignedInMember account={account} />
-            <button disabled={busy} className="plain" onClick={logout}>
-              <LogOut size={17} />
-              {t("Sign out", "ออกจากระบบ")}
-            </button>
-          </div>
+      <aside className="workspace-sidebar">
+        <Brand />
+        {navigation}
+        <div className="member-controls">
+          <SignedInMember account={account} />
+          <LanguageButton disabled={busy} change={flip} />
+          {signOutButton}
         </div>
       </aside>
-      <main id="content" tabIndex={-1} className="content">
-        <div className="toolbar">
-          <span>
-            <House size={16} />
-            {t("My household", "ครัวเรือนของฉัน")}
-          </span>
+      <header className="workspace-mast">
+        <Brand />
+        <div className="mast-actions">
           <LanguageButton disabled={busy} change={flip} />
+          <button
+            className="secondary workspace-menu-toggle"
+            type="button"
+            aria-expanded={menuOpen}
+            aria-controls="workspace-drawer"
+            aria-haspopup="dialog"
+            onClick={(event) => {
+              event.currentTarget.focus();
+              setMenuOpen(true);
+            }}
+          >
+            <MenuIcon size={18} aria-hidden="true" />
+            {t("Menu", "เมนู")}
+          </button>
         </div>
-        <div className="pagehead">
-          <div>
+      </header>
+      <dialog
+        className="workspace-drawer"
+        id="workspace-drawer"
+        ref={menu}
+        aria-label={t("Navigation menu", "เมนูนำทาง")}
+        onClose={() => setMenuOpen(false)}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) event.currentTarget.close();
+        }}
+      >
+        {menuOpen && (
+          <div className="workspace-drawer-inner">
+            <header className="workspace-drawer-head">
+              <Brand />
+              <button
+                className="icon"
+                type="button"
+                aria-label={t("Close menu", "ปิดเมนู")}
+                onClick={() => menu.current?.close()}
+              >
+                <X size={21} aria-hidden="true" />
+              </button>
+            </header>
+            {navigation}
+            <div className="member-controls">
+              <SignedInMember account={account} />
+              {signOutButton}
+            </div>
+          </div>
+        )}
+      </dialog>
+      <main id="content" ref={content} tabIndex={-1} className="content">
+        <div
+          className={page === "pantry" ? "pagehead pantry-head" : "pagehead"}
+        >
+          <div className="pagehead-copy">
+            <p className="kicker">{t("My household", "ครัวเรือนของฉัน")}</p>
             <h1>{title}</h1>
             <p>
               {
@@ -366,19 +441,20 @@ function Workspace({
                 }[page]
               }
             </p>
+            {(page === "pantry" || page === "soon") && (
+              <button
+                className="primary"
+                onClick={() => {
+                  setNotice(false);
+                  setAdding(true);
+                }}
+              >
+                <span aria-hidden="true">+</span>
+                {t("Add groceries", "เพิ่มของสด")}
+              </button>
+            )}
           </div>
-          {(page === "pantry" || page === "soon") && (
-            <button
-              className="primary"
-              onClick={() => {
-                setNotice(false);
-                setAdding(true);
-              }}
-            >
-              <span aria-hidden="true">+</span>
-              {t("Add groceries", "เพิ่มของสด")}
-            </button>
-          )}
+          {page === "pantry" && <Illustration variant="dashboard" />}
         </div>
         <Message code={actionError} />
         {notice && (

@@ -11,8 +11,11 @@ async function register(
 ) {
   if (page.url() === "about:blank") await page.goto("/");
   await page
-    .getByRole("button", { name: "Create an account", exact: true })
+    .getByRole("link", { name: "Create an account", exact: true })
     .click();
+  await expect(
+    page.getByRole("heading", { name: "Create an account", exact: true }),
+  ).toBeVisible();
   await page.getByLabel("First name", { exact: true }).fill(profile.first);
   await page.getByLabel("Last name", { exact: true }).fill(profile.last);
   await page.getByLabel("Username", { exact: true }).fill(name);
@@ -28,7 +31,7 @@ async function go(page: Page, name: string) {
   await expect(page.getByText("My household", { exact: true })).toBeVisible();
   const nav = page.getByRole("navigation");
   if (!(await nav.isVisible()))
-    await page.getByRole("button", { name: "Navigation", exact: true }).click();
+    await page.getByRole("button", { name: "Menu", exact: true }).click();
   await nav.getByRole("link", { name, exact: true }).click();
 }
 function backendSessions(action: "count" | "expire", username: string) {
@@ -42,6 +45,61 @@ function backendSessions(action: "count" | "expire", username: string) {
     },
   ).trim();
 }
+
+test("workspace navigation stays on the left and opens as a drawer on mobile", async ({
+  page,
+}, info) => {
+  await register(page, "sidebar" + suffix());
+  await page.getByRole("button", { name: "Create household" }).click();
+
+  const nav = page.getByRole("navigation", { name: "Navigation" });
+  const inventory = nav.getByRole("link", { name: "Inventory", exact: true });
+  const history = nav.getByRole("link", { name: "History", exact: true });
+  const menu = page.getByRole("button", { name: "Menu", exact: true });
+  const main = page.getByRole("main");
+  await expect(inventory).toHaveAttribute("aria-current", "page");
+  await expect(menu).toBeHidden();
+  expect((await nav.boundingBox())!.x).toBeLessThan(
+    (await main.boundingBox())!.x,
+  );
+  await page.screenshot({ path: info.outputPath("desktop-sidebar.png") });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(nav).toBeHidden();
+  await menu.focus();
+  await menu.press("Enter");
+  const drawer = page.getByRole("dialog", { name: "Navigation menu" });
+  const close = drawer.getByRole("button", { name: "Close menu" });
+  await expect(close).toBeFocused();
+  await page.screenshot({ path: info.outputPath("mobile-sidebar.png") });
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+  await expect(menu).toBeFocused();
+
+  await menu.click();
+  await close.click();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+
+  await menu.click();
+  await page.mouse.click(380, 200);
+  await expect(drawer).toBeHidden();
+
+  await menu.click();
+  await history.click();
+  await expect(drawer).toBeHidden();
+  await expect(main).toBeFocused();
+  await expect(
+    main.getByRole("heading", { name: "History", exact: true }),
+  ).toBeVisible();
+  await menu.click();
+  await expect(history).toHaveAttribute("aria-current", "page");
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(drawer).toBeHidden();
+  await expect(history).toHaveAttribute("aria-current", "page");
+  await page.goBack();
+  await expect(inventory).toHaveAttribute("aria-current", "page");
+});
 
 test("NextAuth revokes one backend session and isolates each member's query cache", async ({
   page,
@@ -100,6 +158,7 @@ test("NextAuth revokes one backend session and isolates each member's query cach
     ).toBeVisible();
     const second = await secondBrowser.newPage();
     await second.goto("/");
+    await second.getByRole("link", { name: "Sign in", exact: true }).click();
     await second
       .getByLabel("Username", { exact: true })
       .fill(username.toUpperCase());
@@ -137,14 +196,14 @@ test("NextAuth revokes one backend session and isolates each member's query cach
 
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(
-      sibling.getByRole("heading", { name: "Welcome back." }),
+      sibling.getByRole("heading", { name: /Good food/ }),
     ).toBeVisible();
     expect((await page.request.get("/api/household")).status()).toBe(401);
     expect((await second.request.get("/api/household")).status()).toBe(200);
     expect(backendSessions("count", username)).toBe("1");
 
     await page.getByRole("button", { name: "Switch to Thai" }).click();
-    await page.getByRole("button", { name: "สร้างบัญชี", exact: true }).click();
+    await page.getByRole("link", { name: "สร้างบัญชี", exact: true }).click();
     await page.getByLabel("ชื่อผู้ใช้", { exact: true }).fill(username);
     await page.getByLabel("รหัสผ่าน", { exact: true }).fill(password);
     const signUpFirstName = page.getByLabel("ชื่อ", { exact: true });
@@ -206,18 +265,25 @@ test("members share inventory, record a cooked meal and retain depleted history"
 }, info) => {
   const owner = "cook" + suffix();
   await page.clock.install();
-  await page.goto("/");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/sign-in");
   await expect(
     page.getByRole("heading", { name: "Welcome back." }),
   ).toBeVisible();
-  await page.screenshot({
-    path: info.outputPath("sign-in.png"),
-    fullPage: true,
-  });
+  await expect(page.locator(".scene-landing")).toHaveAttribute(
+    "data-state",
+    /^(ready|fallback)$/,
+  );
+  await page.screenshot({ path: info.outputPath("sign-in.png") });
   await register(page, owner, { first: "Mali", last: "Santos" });
   await page
     .getByRole("button", { name: "Create household", exact: true })
     .click();
+  await expect(page.locator(".scene-dashboard")).toHaveAttribute(
+    "data-state",
+    /^(ready|fallback)$/,
+  );
+  await page.screenshot({ path: info.outputPath("inventory.png") });
   await page.getByRole("button", { name: "Add groceries" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Item name", { exact: true }).fill("Spinach");
@@ -448,9 +514,8 @@ test("members share inventory, record a cooked meal and retain depleted history"
   await go(page, "Meal ideas");
   await expect(page.getByText(/Add in-date or undated/)).toBeVisible();
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Welcome back." }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Good food/ })).toBeVisible();
+  await page.getByRole("link", { name: "Sign in" }).click();
   await page.getByLabel("Username", { exact: true }).fill(owner.toUpperCase());
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
