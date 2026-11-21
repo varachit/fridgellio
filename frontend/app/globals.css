@@ -978,8 +978,222 @@ details label {
 .inline-fields > button:not(.wide) {
   align-self: flex-end;
 }
-.meal-panel {
+.meal-layout {
+  display: grid;
+  align-items: start;
+  gap: 1.3rem;
+  max-width: 74rem;
+}
+.meal-preview {
+  background: #f3f7ee;
+}
+.meal-preview h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.meal-fields {
+  gap: 1.3rem;
+  margin-top: 1.4rem;
+}
+.meal-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 1rem;
+}
+.meal-group {
+  gap: 0.5rem;
+}
+.meal-group legend {
+  margin-bottom: 0.5rem;
+  padding: 0;
+  font-size: 0.91rem;
+  font-weight: 700;
+}
+.meal-choices,
+.meal-stepper {
+  display: flex;
+  align-items: center;
+}
+.meal-choices {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.meal-choices label,
+.meal-stepper {
+  border: 1px solid var(--control);
+  border-radius: 0.75rem;
+}
+.meal-choices label {
+  flex-direction: row;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.45rem 0.75rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.meal-choices label:has(input:checked) {
   background: var(--sage);
+  border-color: var(--green);
+}
+.meal-choices input {
+  accent-color: var(--green);
+  min-height: 0;
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  margin: 0;
+  padding: 0;
+}
+.meal-stepper {
+  width: fit-content;
+}
+.meal-stepper button {
+  display: grid;
+  place-items: center;
+  width: 2.9rem;
+  height: 2.85rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: transparent;
+}
+.meal-stepper output {
+  text-align: center;
+  min-width: 2rem;
+  font-variant-numeric: tabular-nums;
+}
+.meal-still-life {
+  display: block;
+  width: min(100%, 22rem);
+  height: auto;
+  margin: 0.75rem auto;
+}
+.meal-section {
+  border: 0;
+  border-top: 1px solid var(--line);
+  padding: 0;
+}
+.meal-sections {
+  border-bottom: 1px solid var(--line);
+}
+.meal-section summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0.25rem;
+  list-style: none;
+}
+.meal-section summary::-webkit-details-marker {
+  display: none;
+}
+.meal-section summary > svg {
+  flex: none;
+  color: var(--green);
+}
+.meal-section summary span {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.meal-section summary small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+}
+.meal-section summary:hover strong,
+.meal-stepper button:enabled:hover {
+  color: var(--green);
+}
+.meal-stepper button:disabled,
+.meal-fields .primary:disabled {
+  cursor: not-allowed;
+}
+.meal-chevron {
+  margin-inline-start: auto;
+}
+.meal-section[open] .meal-chevron {
+  transform: rotate(180deg);
+}
+.meal-section-body {
+  display: grid;
+  gap: 1rem;
+  padding: 0.4rem 0.25rem 1.5rem;
+}
+.meal-section-body label {
+  margin: 0;
+}
+.meal-section-body > small {
+  margin-top: -0.65rem;
+}
+.meal-fields small, .meal-section-body > p {
+  color: var(--muted);
+  font-weight: 400;
+}
+.meal-preview p:last-child {
+  margin-bottom: 0;
+}
+.meal-fields textarea {
+  resize: vertical;
+  min-height: 3rem;
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+  font-weight: 400;
+  border: 1px solid var(--control);
+  border-radius: 0.75rem;
+  color: var(--ink);
+  background: var(--surface);
+}
+.meal-empty p {
+  margin-bottom: 0.5rem;
+}
+@media (max-width: 40rem) {
+  .meal-still-life {
+    display: none;
+  }
+  .meal-fields > button.primary {
+    width: 100%;
+    justify-content: center;
+  }
+}
+.meal-summary {
+  margin: 1rem 0;
+  overflow-wrap: anywhere;
+}
+.meal-summary dt {
+  font-weight: 600;
+}
+.meal-summary dd {
+  margin: 0 0 0.65rem;
+}
+.meal-ingredients {
+  list-style: none;
+  padding: 0;
+  margin: 0.7rem 0 0;
+}
+.meal-ingredients li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid var(--line);
+  padding-block: 0.55rem;
+  overflow-wrap: anywhere;
+}
+.meal-ingredients li span:last-child {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+@media (min-width: 68rem) {
+  .meal-layout {
+    grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  }
+  .meal-preview {
+    position: sticky;
+    top: 1.5rem;
+  }
+  .saved-menus {
+    grid-column: 1 / -1;
+  }
 }
 .dish {
   border-top: 1px solid var(--line);

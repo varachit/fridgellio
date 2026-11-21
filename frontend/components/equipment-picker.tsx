@@ -8,7 +8,7 @@ import { normalize, type Localized, type Named } from "@/lib/pantry";
 import { equipmentQuery } from "@/lib/queries";
 import { Busy, Dialog, Message, Retry, useText } from "./ui";
 
-const presets: Localized[] = [
+export const equipmentPresets: Localized[] = [
   { en: "Stove", th: "เตา" },
   { en: "Skillet", th: "กระทะแบน" },
   { en: "Wok", th: "กระทะก้นลึก" },
@@ -25,8 +25,8 @@ const presets: Localized[] = [
 
 type Choice = { name: Localized; custom: boolean; saved: Named[] };
 
-function equipmentChoices(saved: Named[]) {
-  const choices: Choice[] = presets.map((name) => ({
+export function equipmentChoices(saved: Named[]) {
+  const choices: Choice[] = equipmentPresets.map((name) => ({
     name,
     custom: false,
     saved: [],

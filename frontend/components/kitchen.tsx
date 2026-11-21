@@ -49,7 +49,8 @@ import {
   HouseholdMembers,
   MemberIdentity,
 } from "./household-members";
-import { Meals, SettingsView } from "./management";
+import { SettingsView } from "./management";
+import { Meals } from "./meals";
 type Account = Session["user"];
 type Page = "pantry" | "soon" | "meals" | "history" | "members" | "settings";
 const pages: Page[] = [
@@ -431,8 +432,8 @@ function Workspace({
                     "ผู้ที่เข้าถึงคลังอาหารส่วนรวมได้",
                   ),
                   meals: t(
-                    "Plan a meal with the ingredients and equipment you have.",
-                    "วางแผนมื้ออาหารด้วยวัตถุดิบและอุปกรณ์ที่มี",
+                    "Preview a request for up to 5 recipes using what you have.",
+                    "ดูตัวอย่างคำขอแนะนำสูงสุด 5 เมนูจากวัตถุดิบที่มีในครัว",
                   ),
                   settings: t(
                     "Manage your preferences and shared kitchen.",

@@ -1,6 +1,6 @@
 # Fridgellio
 
-Fridgellio helps households track pantry items and groceries together and decide what to cook. It sends eligible ingredients and the household's available cooking equipment to OpenAI, then shows a suggested menu with ingredient quantities and step-by-step cooking instructions. Each member can set their own **Foods to avoid** for their meal ideas.
+Fridgellio helps households track pantry items and groceries together and decide what to cook. In **Meal ideas**, members can prepare a request for up to five recipes using what they have. Version 1 previews the available ingredients and meal preferences. AI recipe generation is planned for a later version.
 
 ## Who it serves
 
@@ -10,7 +10,7 @@ The first release is designed for household members who shop and cook. They shar
 
 1. Add groceries manually, take a photo for AI suggestions, or scan a barcode to fill in its digits. Select **Look up product** to find a match in Open Food Facts. Review the name, quantity, unit, and storage location before saving. Add an expiry date when available.
 2. Open **Use soon** to see food dated within the next three days, with the closest dates first. Past-date entries appear in a separate list.
-3. In **Settings**, select a card for each piece of cooking equipment your household has. Select it again to remove it. Add any ingredients you want to exclude under **Foods to avoid**. In **Meal ideas**, request a menu using the shared pantry, selected equipment, and your personal food preferences. The menu shows what to make, how much to use, which equipment is needed, and how to cook it.
+3. In **Settings**, select a card for each piece of cooking equipment your household has. Select it again to remove it. Add any ingredients you want to exclude under **Foods to avoid**. In **Meal ideas**, choose servings and a time limit. Expand the sections for dietary styles, a nutrition goal, cuisines, difficulty, and kitchen settings. Adjust exclusions or equipment for this meal, then select **Generate menu** to preview the request.
 4. Record what you used directly in inventory after cooking. Open **History** or an item's **Entry history** to see who added, used, or discarded stock and in what quantity. Open **Household** to see who shares your pantry. The owner can create and remove unused invitation codes such as `K7RM-3X9D`.
 
 Use the app in English or Thai. Fridgellio saves both language versions of AI-generated grocery names and menus so switching languages can display the saved translation.
@@ -42,7 +42,7 @@ uv run alembic upgrade head
 uv run uvicorn fridgellio.main:create_app --factory --reload --no-access-log
 ```
 
-Open Swagger UI at `http://127.0.0.1:8000/docs`. Register with `POST /api/auth/register` and supply `username`, `password`, `first_name`, and `last_name`. Sign in to an existing account with `POST /api/auth/login`. Copy the returned `token` into Swagger’s **Authorize** field to call protected routes. The household owner can issue single-use invites that expire after 24 hours and revoke them before use. The photo and menu routes return `501` until AI integration is added.
+Open Swagger UI at `http://127.0.0.1:8000/docs`. Register with `POST /api/auth/register` and supply `username`, `password`, `first_name`, and `last_name`. Sign in to an existing account with `POST /api/auth/login`. Copy the returned `token` into Swagger’s **Authorize** field to call protected routes. The household owner can issue single-use invites that expire after 24 hours and revoke them before use. Use `POST /api/menus/recommendations` to preview a meal request with household stock. The AI photo analysis and menu generation routes return `501` until AI integration is added.
 
 See [Authentication operations](docs/backend-stack.md#authentication-operations) for password resets, expired session cleanup, and provisioning local credentials for existing accounts.
 
@@ -82,7 +82,7 @@ Open `http://localhost:3000`, create an account, and create a household or join 
 
 ## How to judge the first release
 
-Household members should be able to add groceries to the same pantry and get meal ideas using the shared stock and equipment and their own **Foods to avoid** settings. After one member records what they used, the other members should see the updated quantities.
+Household members should be able to add groceries to the same pantry and preview meal requests using shared stock and equipment and their own **Foods to avoid** settings. After one member records what they used, the other members should see the updated quantities.
 
 See [Product requirements](docs/requirements.md) for detailed behavior and acceptance criteria.
 

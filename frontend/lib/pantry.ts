@@ -78,8 +78,8 @@ export function quantityError(raw: string, unit: Unit, maximum?: string) {
 }
 export const normalize = (value: string) =>
   value.normalize("NFC").trim().replace(/\s+/g, " ").toLowerCase();
-export function eligibleEntries(stock: Stock[], foods: Named[], day: string) {
-  const excluded = new Set(foods.map((food) => normalize(food.name)));
+export function eligibleEntries(stock: Stock[], foods: string[], day: string) {
+  const excluded = new Set(foods.map(normalize));
   const fresh = stock.filter(
     (item) =>
       Number(item.quantity) > 0 &&

@@ -14,6 +14,10 @@ from .schemas import AvoidedFoodInput, AvoidedFoodView, InputModel, Name, Output
 router = APIRouter(prefix="/preferences", tags=["Preferences"])
 
 
+def name_key(name: str) -> str:
+    return normalize("NFC", " ".join(name.split()).casefold())
+
+
 class ProfilePatch(InputModel):
     first_name: Name | None = None
     last_name: Name | None = None
@@ -84,10 +88,10 @@ async def list_avoided_foods(account: CurrentAccount, session: Session) -> list[
 async def add_avoided_food(
     body: AvoidedFoodInput, account: CurrentAccount, session: Session, response: Response
 ) -> AvoidedFoodView:
-    name_key = normalize("NFC", " ".join(body.name.split()).casefold())
+    key = name_key(body.name)
     food = await session.scalar(
         insert(AvoidedFood)
-        .values(account_id=account.id, name=body.name, name_key=name_key)
+        .values(account_id=account.id, name=body.name, name_key=key)
         .on_conflict_do_nothing(constraint="uq_avoided_food_name")
         .returning(AvoidedFood)
     )
@@ -96,7 +100,7 @@ async def add_avoided_food(
         food = (
             await session.scalars(
                 select(AvoidedFood).where(
-                    AvoidedFood.account_id == account.id, AvoidedFood.name_key == name_key
+                    AvoidedFood.account_id == account.id, AvoidedFood.name_key == key
                 )
             )
         ).one_or_none()

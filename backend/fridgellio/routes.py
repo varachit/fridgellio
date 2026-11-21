@@ -13,6 +13,7 @@ from .errors import ApiError, responses
 from .households import router as households_router
 from .models import Equipment, InventoryEvent, Menu, StockEntry
 from .preferences import router as preferences_router
+from .recommendations import router as recommendations_router
 from .schemas import (
     BarcodeView,
     CalendarDate,
@@ -38,6 +39,7 @@ api = APIRouter(prefix="/api", responses=responses(401, 403, 422, 503))
 api.include_router(auth_router)
 api.include_router(households_router)
 api.include_router(preferences_router)
+api.include_router(recommendations_router)
 Today = Annotated[CalendarDate | None, Query(description="Client's local calendar date")]
 PageSize = Annotated[int, Query(ge=1, le=200)]
 PageOffset = Annotated[int, Query(ge=0)]

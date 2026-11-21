@@ -11,6 +11,7 @@
 - [x] Implement shared equipment and private English or Thai language and Foods to avoid settings.
 - [x] Implement Open Food Facts barcode lookup with localized suggestions and failure handling.
 - [x] Decode numeric barcodes from uploaded camera stills.
+- [x] Preview pantry-only recipe requests with per-request preferences and compatible stock totals.
 - [x] Add typed photo-analysis and menu-generation placeholders that return `501`.
 
 ## API contract
@@ -29,12 +30,32 @@
 | `PATCH /api/inventory/{entry_id}`, `DELETE /api/inventory/{entry_id}` | Edit or remove an owned entry. Keep recorded history. |
 | `GET /api/inventory/{entry_id}/events`, `POST /api/inventory/{entry_id}/events` | Read history or record a usage or discard. |
 | `GET /api/inventory-history` | Read household usage and discard events, including entries that were depleted or removed. |
+| `POST /api/menus/recommendations` | Prepare a request for up to five recipes using the member’s household stock. Returns `status: preview`, the recipe limit, effective preferences, and ingredient quantities. Omit equipment or exclusions to use saved settings, or send an empty list to clear that setting for the request. |
 | `GET /api/menus` | List the signed-in member’s saved bilingual menus, newest first. |
 | `GET /api/equipment`, `POST /api/equipment` | List or add equipment. |
 | `PATCH /api/equipment/{equipment_id}`, `DELETE /api/equipment/{equipment_id}` | Edit or remove owned equipment. |
 | `GET /api/barcodes/{code}` | Look up a product without writing inventory. Use an optional `language` override or the saved preference. |
 | `POST /api/barcodes/decode` | Accept one image in the multipart `photo` field and return the decoded digits as a JSON string. |
 | `POST /api/photos/analyze`, `POST /api/menus` | Reserve authenticated routes for future AI work. Return `501` with a machine-readable error. |
+
+### Meal request example
+
+Send this JSON to `POST /api/menus/recommendations` with the member's bearer token to preview three servings for a 30-minute meal. The request uses their saved food exclusions and a microwave for this meal.
+
+```json
+{
+  "today": "2026-06-10",
+  "servings": 3,
+  "dietary_styles": ["Vegan"],
+  "nutrition_goal": "High protein",
+  "cuisines": ["Thai", "Japanese"],
+  "max_total_minutes": 30,
+  "difficulty": "easy",
+  "equipment": ["Microwave"]
+}
+```
+
+The response includes `recipe_limit: 5` and pantry quantities in whole items, grams, or milliliters. Expiry dates and the effective food exclusions determine which ingredients appear. Diet, cuisine, nutrition, time, and difficulty are preferences for the future recipe generator. Each ingredient has a decimal-string quantity. An empty `ingredients` list means the current pantry and exclusions produced no eligible stock.
 
 ## Verification
 
