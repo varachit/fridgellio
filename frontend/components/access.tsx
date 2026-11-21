@@ -68,6 +68,8 @@ export function SignIn({
         onSubmit={(e) => {
           e.preventDefault();
           void action.run(async () => {
+            if (create && (!firstName.trim() || !lastName.trim()))
+              throw new ApiError("profile_names_required");
             const result = await signIn("credentials", {
               redirect: false,
               callbackUrl: location.origin,
@@ -98,8 +100,9 @@ export function SignIn({
           {create && (
             <div className="profile-names">
               <label>
-                {t("First name (optional)", "ชื่อ (ไม่จำเป็น)")}
+                {t("First name", "ชื่อ")}
                 <input
+                  required
                   autoComplete="given-name"
                   maxLength={200}
                   value={firstName}
@@ -107,8 +110,9 @@ export function SignIn({
                 />
               </label>
               <label>
-                {t("Last name (optional)", "นามสกุล (ไม่จำเป็น)")}
+                {t("Last name", "นามสกุล")}
                 <input
+                  required
                   autoComplete="family-name"
                   maxLength={200}
                   value={lastName}
@@ -152,7 +156,7 @@ export function SignIn({
                 type={visible ? "text" : "password"}
                 aria-label={t("Password", "รหัสผ่าน")}
                 autoComplete={create ? "new-password" : "current-password"}
-                minLength={create ? 15 : 1}
+                minLength={create ? 8 : 1}
                 maxLength={128}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -174,7 +178,7 @@ export function SignIn({
           </label>
           {create && (
             <small>
-              {t("Use 15 to 128 characters.", "ใช้รหัสผ่าน 15 ถึง 128 ตัวอักษร")}
+              {t("Use 8 to 128 characters.", "ใช้รหัสผ่าน 8 ถึง 128 ตัวอักษร")}
             </small>
           )}
           <Message
@@ -268,7 +272,10 @@ export function Onboarding({
               <input
                 required
                 maxLength={43}
-                pattern="[A-Za-z0-9_\-]{43}"
+                pattern="(?:[A-Za-z0-9]{4}-?[A-Za-z0-9]{4}|[A-Za-z0-9_\-]{43})"
+                placeholder="XXXX-XXXX"
+                spellCheck={false}
+                autoCorrect="off"
                 value={token}
                 onChange={(e) => setToken(e.target.value.trim())}
               />

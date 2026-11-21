@@ -131,10 +131,11 @@ export function StockEditor({
   const { t, lang } = useText(),
     labels = useLabels(),
     action = useAction();
+  const [initialDraft] = useState(() => fromStock(existing));
   const [method, setMethod] = useState<"manual" | "photo" | "barcode">(
       "manual",
     ),
-    [draft, setDraft] = useState<Draft>(() => fromStock(existing));
+    [draft, setDraft] = useState(initialDraft);
   const [code, setCode] = useState(""),
     [scan, setScan] = useState(false),
     [file, setFile] = useState<File | null>(null);
@@ -254,7 +255,6 @@ export function StockEditor({
                 found={(digits) => {
                   setScan(false);
                   setCode(digits);
-                  lookup(digits);
                 }}
                 failed={() => {
                   setScan(false);
@@ -347,7 +347,7 @@ export function StockEditor({
             void action.run(async () => {
               const values = payload(draft);
               if (existing) {
-                const original = payload(fromStock(existing));
+                const original = payload(initialDraft);
                 const changes = Object.fromEntries(
                   Object.entries(values).filter(
                     ([k, v]) => v !== original[k as keyof typeof original],

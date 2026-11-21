@@ -1,6 +1,6 @@
 # Fridgellio web app
 
-Household members can register, join a shared pantry, add groceries, track dates, and record use or discard. Settings holds shared kitchen equipment, personal foods to avoid, and household invitations. Switch between English and Thai using the language control.
+Household members can register, join a shared pantry, add groceries, track dates, and record use or discard. Open **Household** to see members and manage invitations. **Settings** holds your profile, personal foods to avoid, and shared kitchen equipment. Switch between English and Thai using the language control.
 
 ## Local development
 
@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open `http://localhost:3000`. Create an account and choose **Create household**. To share a pantry, the creator can generate a code in **Settings**. A new member can enter it after registration.
+Open `http://localhost:3000`. Create an account and choose **Create household**. To share a pantry, the owner can generate a code in **Household**. A new member can enter it after registration.
 
 ## Server configuration
 
@@ -42,7 +42,7 @@ TanStack React Query manages household, preference, inventory, history, equipmen
 
 - Inventory shows active entries separately for each purchase. Search by any saved name, filter by storage location, and select an entry to edit, remove, use, or discard it. Shared stock refreshes after writes, on window focus, and every 30 seconds while visible.
 - **Use soon** groups entries due today through three days ahead and lists past-date groceries separately. The app sends the member’s local calendar date to FastAPI.
-- **History** includes usage and discard events after a stock entry is depleted or removed. A retry of the same deduction in the open form reuses its request key.
+- **History** shows who added, used, or discarded stock and retains those events after an entry is depleted or removed. A retry of the same deduction in the open form reuses its request key.
 - Scan a barcode using the camera or type the digits. Review localized names and enter the actual quantity before saving. The browser loads the scanner when the camera is opened.
 - Photo intake and meal ideas call the backend contracts. The current service returns `501 ai_not_implemented` for analysis and generation. Photo intake offers manual entry and meal ideas offers a retry. **Saved menus** displays any validated menus stored for the account.
 

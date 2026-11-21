@@ -2,15 +2,33 @@ from unicodedata import normalize
 from uuid import UUID
 
 from fastapi import APIRouter, Response
+from pydantic import field_validator
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 
 from .data import CurrentAccount, Session
 from .errors import ApiError, responses
 from .models import AvoidedFood
-from .schemas import AvoidedFoodInput, AvoidedFoodView, Preferences
+from .schemas import AvoidedFoodInput, AvoidedFoodView, InputModel, Name, OutputModel, Preferences
 
 router = APIRouter(prefix="/preferences", tags=["Preferences"])
+
+
+class ProfilePatch(InputModel):
+    first_name: Name | None = None
+    last_name: Name | None = None
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def required_when_present(cls, value: str | None) -> str:
+        if value is None:
+            raise ValueError("This field cannot be null")
+        return value
+
+
+class ProfileView(OutputModel):
+    first_name: str | None
+    last_name: str | None
 
 
 @router.get("")
@@ -25,6 +43,27 @@ async def update_preferences(
     account.language = body.language
     await session.commit()
     return body
+
+
+@router.get("/profile")
+async def get_profile(account: CurrentAccount) -> ProfileView:
+    return ProfileView.model_validate(account)
+
+
+@router.patch("/profile", responses=responses(422))
+async def update_profile(
+    body: ProfilePatch, account: CurrentAccount, session: Session
+) -> ProfileView:
+    changes = body.model_dump(exclude_unset=True)
+    first_name = changes.get("first_name", account.first_name)
+    last_name = changes.get("last_name", account.last_name)
+    if not (first_name or "").strip() or not (last_name or "").strip():
+        raise ApiError(422, "profile_names_required", "Enter both a first name and a last name.")
+    for field, value in changes.items():
+        setattr(account, field, value)
+    await session.commit()
+    await session.refresh(account)
+    return ProfileView.model_validate(account)
 
 
 @router.get("/foods-to-avoid")

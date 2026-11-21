@@ -50,8 +50,8 @@ export const authOptions: NextAuthOptions = {
               password,
               ...(register && {
                 language: language === "th" ? "th" : "en",
-                first_name: credentials.firstName?.trim() || null,
-                last_name: credentials.lastName?.trim() || null,
+                first_name: credentials.firstName,
+                last_name: credentials.lastName,
               }),
             }),
           },

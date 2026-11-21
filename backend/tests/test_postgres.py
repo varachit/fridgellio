@@ -1,4 +1,5 @@
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -12,14 +13,17 @@ from sqlalchemy import create_engine, func, select, text, update
 from sqlalchemy.orm import Session
 from sqlalchemy.schema import CreateSchema, DropSchema
 
-from fridgellio.auth import RegisterInput
+from fridgellio import households
+from fridgellio.auth import NewPasswordInput
 from fridgellio.config import Settings
+from fridgellio.data import token_digest
 from fridgellio.main import create_app
 from fridgellio.manage_auth import set_password
 from fridgellio.models import Account, AccountCredential, AccountSession, AuthRateLimit, Menu
 
 API_DIR = Path(__file__).resolve().parents[1]
 PASSWORD = "example passphrase 123"
+LEGACY_INVITATION_CODE = "Ab9_-" * 8 + "xYz"
 
 
 @pytest.fixture
@@ -52,6 +56,24 @@ def database(monkeypatch):
                     ),
                     {"id": legacy_id},
                 )
+                connection.execute(
+                    text("INSERT INTO households (id, created_by) VALUES (:id, :id)"),
+                    {"id": legacy_id},
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO household_memberships (account_id, household_id) "
+                        "VALUES (:id, :id)"
+                    ),
+                    {"id": legacy_id},
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO household_invitations (token_digest, household_id, expires_at) "
+                        "VALUES (:digest, :id, clock_timestamp() + interval '24 hours')"
+                    ),
+                    {"digest": token_digest(LEGACY_INVITATION_CODE), "id": legacy_id},
+                )
         finally:
             engine.dispose()
         command.upgrade(migrations, "head")
@@ -72,7 +94,15 @@ def client(database):
 
 
 def register(client, username):
-    response = client.post("/api/auth/register", json={"username": username, "password": PASSWORD})
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "username": username,
+            "password": PASSWORD,
+            "first_name": username.capitalize(),
+            "last_name": "Tester",
+        },
+    )
     assert response.status_code == 201, response.json()
     return response.json()
 
@@ -86,15 +116,17 @@ def household_accounts(client):
     return [bearer(register(client, name)) for name in ("owner", "member", "other")]
 
 
-def add_stock(client, owner, name="Spinach", quantity="100", expiry_date=None):
+def add_stock(
+    client, member, name="Spinach", quantity="100", expiry_date=None, *, location="fridge"
+):
     result = client.post(
         "/api/inventory",
-        headers=owner,
+        headers=member,
         json={
             "name": name,
             "quantity": quantity,
             "unit": "g",
-            "location": "fridge",
+            "location": location,
             "expiry_date": expiry_date,
         },
     )
@@ -102,14 +134,81 @@ def add_stock(client, owner, name="Spinach", quantity="100", expiry_date=None):
     return result.json()["id"]
 
 
+def test_owner_can_revoke_only_pending_invites_from_their_household(
+    client, household_accounts, monkeypatch
+):
+    owner, member, other = household_accounts
+    path = "/api/household/invitations"
+    join = "/api/household/join"
+    for household_owner in (owner, other):
+        assert client.post("/api/household", headers=household_owner).status_code == 201
+    characters = iter("K7RM3X9DT4WP8N2CK7RM3X9DJ5MR2HZ8")
+    monkeypatch.setattr(households, "choice", lambda _: next(characters))
+    revoked = client.post(path, headers=owner).json()
+    used = client.post(path, headers=owner).json()
+    assert revoked["token"] == "K7RM-3X9D"
+    assert revoked["id"] != token_digest(revoked["token"])
+    assert client.post(join, headers=member, json={"token": used["token"]}).status_code == 201
+
+    revoke_path = f"{path}/{revoked['id']}"
+    assert client.get(path, headers=member).status_code == 403
+    assert client.delete(revoke_path, headers=member).status_code == 403
+    assert client.get(path, headers=other).json() == []
+    assert client.delete(revoke_path, headers=other).status_code == 204
+    assert client.get(path, headers=owner).json() == [
+        {"id": revoked["id"], "expires_at": revoked["expires_at"]}
+    ]
+
+    assert client.delete(revoke_path, headers=owner).status_code == 204
+    assert client.delete(revoke_path, headers=owner).status_code == 204
+    spare = client.post(path, headers=owner).json()
+    assert spare["token"] == "J5MR-2HZ8"
+    assert [row["id"] for row in client.get(path, headers=owner).json()] == [spare["id"]]
+    guest = bearer(register(client, "guest"))
+    result = client.post(join, headers=guest, json={"token": revoked["token"]})
+    assert result.status_code == 404
+    assert result.json()["code"] == "invitation_unavailable"
+    typed_code = spare["token"].lower().replace("-", "")
+    assert client.post(join, headers=guest, json={"token": typed_code}).status_code == 201
+    assert client.get(path, headers=owner).json() == []
+
+
+def test_join_attempt_limit_is_per_account(client, household_accounts):
+    owner, member, other = household_accounts
+    join = "/api/household/join"
+    assert client.post("/api/household", headers=owner).status_code == 201
+    for _ in range(10):
+        assert client.post(join, headers=member, json={"token": "0000-0000"}).status_code == 404
+    invite = client.post("/api/household/invitations", headers=owner).json()["token"]
+    payload = {"token": invite}
+    result = client.post(join, headers=member, json=payload)
+    assert result.status_code == 429
+    assert result.json()["code"] == "auth_rate_limited"
+    assert client.post(join, headers=other, json=payload).status_code == 201
+
+
+def test_invitation_issued_before_migration_remains_valid(client, database, household_accounts):
+    _, legacy_id = database
+    _, member, _ = household_accounts
+    join = "/api/household/join"
+    assert client.post(join, headers=member, json={"token": LEGACY_INVITATION_CODE}).json() == {
+        "id": str(legacy_id),
+        "can_invite": False,
+    }
+
+
 def test_inventory_expiry_household_isolation_and_preferences(client, household_accounts):
     owner, member, other = household_accounts
     assert client.get("/health/ready").status_code == 200
     assert client.get("/api/inventory", headers=owner).status_code == 403
+    members_path = "/api/household/members"
+    assert client.get(members_path).status_code == 401
+    assert client.get(members_path, headers=owner).status_code == 403
     assert client.get("/api/household", headers=owner).json() is None
     household = client.post("/api/household", headers=owner).json()
     assert household["can_invite"] is True
     invite = client.post("/api/household/invitations", headers=owner).json()["token"]
+    assert re.fullmatch(r"[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}", invite)
     assert client.post("/api/household/join", headers=member, json={"token": invite}).json() == {
         "id": household["id"],
         "can_invite": False,
@@ -118,12 +217,35 @@ def test_inventory_expiry_household_isolation_and_preferences(client, household_
         client.post("/api/household/join", headers=other, json={"token": invite}).status_code == 404
     )
     assert client.post("/api/household", headers=other).status_code == 201
+    roster = client.get(members_path, headers=member).json()
+    assert [(row["username"], row["is_owner"]) for row in roster] == [
+        ("owner", True),
+        ("member", False),
+    ]
+    assert set(roster[0]) == {
+        "id",
+        "username",
+        "first_name",
+        "last_name",
+        "profile_picture_url",
+        "is_owner",
+    }
+    assert [row["username"] for row in client.get(members_path, headers=other).json()] == ["other"]
     assert client.post("/api/household/invitations", headers=member).status_code == 403
     stock = add_stock(client, owner, expiry_date="2026-06-10")
-    add_stock(client, owner, "Green beans", expiry_date="2026-06-13")
-    add_stock(client, owner, "Carrots", expiry_date="2026-06-14")
-    add_stock(client, owner, "Celery", expiry_date="2026-06-09")
+    add_stock(client, member, "Green beans", expiry_date="2026-06-13", location="pantry")
+    add_stock(client, owner, "Carrots", expiry_date="2026-06-14", location="other")
+    add_stock(client, member, "Celery", expiry_date="2026-06-09", location="freezer")
     add_stock(client, owner, "Lettuce")
+    owner_stock = client.get("/api/inventory?today=2026-06-10", headers=owner).json()
+    assert client.get("/api/inventory?today=2026-06-10", headers=member).json() == owner_stock
+    assert {(row["name"], row["location"]) for row in owner_stock} == {
+        ("Spinach", "fridge"),
+        ("Green beans", "pantry"),
+        ("Carrots", "other"),
+        ("Celery", "freezer"),
+        ("Lettuce", "fridge"),
+    }
     response = client.get("/api/inventory?today=2026-06-10&expiry=use_soon", headers=member)
     assert [(row["name"], row["expiry_status"]) for row in response.json()] == [
         ("Spinach", "due_today"),
@@ -184,11 +306,23 @@ def test_concurrent_deduction_and_retry(client, household_accounts):
     replay = deduct(winning_member)
     assert replay.status_code == 200
     assert replay.json()["entry"]["quantity"] == "25"
-    assert client.get(path, headers=owner).json() == client.get(path, headers=member).json()
-    assert len(client.get(path, headers=member).json()) == 1
+    events = client.get(path, headers=member).json()
+    assert client.get(path, headers=owner).json() == events
+    assert len(events) == 2
+    by_kind = {event["kind"]: event for event in events}
+    assert by_kind["added"]["quantity"] == "100"
+    assert (
+        by_kind["added"]["actor_account_id"]
+        == client.get("/api/auth/me", headers=owner).json()["id"]
+    )
+    assert by_kind["used"] == replay.json()["event"]
+    assert (
+        by_kind["used"]["actor_account_id"]
+        == client.get("/api/auth/me", headers=winning_member).json()["id"]
+    )
     assert client.delete(f"/api/inventory/{entry}", headers=owner).status_code == 204
     assert client.get("/api/inventory", headers=owner).json() == []
-    assert client.get(path, headers=owner).json()[0]["quantity"] == "75"
+    assert client.get(path, headers=owner).json() == events
 
     assert (
         client.get("/api/inventory-history", headers=member).json()
@@ -198,20 +332,63 @@ def test_concurrent_deduction_and_retry(client, household_accounts):
     assert client.get("/api/inventory-history", headers=other).json() == []
 
 
+def test_profile_updates_only_the_signed_in_account(client, household_accounts):
+    owner, member, _ = household_accounts
+    path = "/api/preferences/profile"
+    assert client.get(path).status_code == 401
+    assert client.patch(path, json={"first_name": "มาลี"}).status_code == 401
+    assert client.get(path, headers=owner).json() == {"first_name": "Owner", "last_name": "Tester"}
+    account = client.get("/api/auth/me", headers=owner).json()
+
+    saved = client.patch(path, headers=owner, json={"first_name": " มาลี ", "last_name": "Santos"})
+    assert saved.status_code == 200
+    assert saved.json() == {"first_name": "มาลี", "last_name": "Santos"}
+    for invalid in (
+        {"last_name": "x" * 201},
+        {"username": "member"},
+        {"first_name": " "},
+        {"last_name": None},
+    ):
+        assert client.patch(path, headers=owner, json=invalid).status_code == 422
+    assert client.get(path, headers=owner).json() == saved.json()
+
+    updated = {"first_name": "มาลี", "last_name": "Reyes"}
+    assert client.patch(path, headers=owner, json={"last_name": " Reyes "}).json() == updated
+    assert client.get(path, headers=owner).json() == updated
+    assert client.get(path, headers=member).json() == {
+        "first_name": "Member",
+        "last_name": "Tester",
+    }
+    assert client.get("/api/auth/me", headers=owner).json() == account | updated
+
+
 def test_session_lifecycle_and_expiration(client, database):
-    credentials = {"username": "ALICE", "password": PASSWORD}
-    invalid = client.post("/api/auth/register", json=credentials | {"password": "too short"})
+    credentials = {"username": "ALICE", "password": "eight888"}
+    profile = {"first_name": "  มาลี ", "last_name": "O’Neill"}
+    for missing_name in profile:
+        payload = credentials | {
+            field: value for field, value in profile.items() if field != missing_name
+        }
+        invalid = client.post("/api/auth/register", json=payload)
+        assert invalid.status_code == 422
+        assert invalid.json()["fields"][0]["path"] == ["body", missing_name]
+    invalid = client.post(
+        "/api/auth/register", json=credentials | profile | {"password": "seven77"}
+    )
     assert invalid.status_code == 422
     assert invalid.json()["fields"][0]["path"] == ["body", "password"]
-    assert "too short" not in invalid.text
-    profile = {"first_name": "  มาลี ", "last_name": "O’Neill"}
+    assert "seven77" not in invalid.text
     for invalid_field in (
         {"first_name": " "},
+        {"last_name": None},
         {"last_name": "x" * 201},
         {"profile_picture_url": "https://example.org/photo.jpg"},
     ):
         assert (
-            client.post("/api/auth/register", json=credentials | invalid_field).status_code == 422
+            client.post(
+                "/api/auth/register", json=credentials | profile | invalid_field
+            ).status_code
+            == 422
         )
     response = client.post("/api/auth/register", json=credentials | profile)
     assert response.status_code == 201
@@ -222,7 +399,7 @@ def test_session_lifecycle_and_expiration(client, database):
     assert account["first_name"] == "มาลี"
     assert account["last_name"] == "O’Neill"
     assert account["profile_picture_url"] is None
-    assert client.post("/api/auth/register", json=credentials).status_code == 409
+    assert client.post("/api/auth/register", json=credentials | profile).status_code == 409
     assert client.get("/api/auth/me", headers=first).json() == account
     assert (
         client.get("/api/auth/me", headers={"Authorization": "Bearer " + "x" * 43}).status_code
@@ -293,7 +470,7 @@ def test_login_throttling(client, database):
 
 def test_legacy_credentials_and_operator_reset(client, database):
     database_url, legacy_id = database
-    credentials = RegisterInput(username="legacy", password=PASSWORD)
+    credentials = NewPasswordInput(username="legacy", password=PASSWORD)
     engine = create_engine(database_url, hide_parameters=True)
     try:
         with Session(engine) as session, session.begin():
@@ -317,10 +494,18 @@ def test_legacy_credentials_and_operator_reset(client, database):
         assert client.get("/api/preferences", headers=bearer(login.json())).json() == {
             "language": "th"
         }
+        headers = bearer(login.json())
+        path = "/api/preferences/profile"
+        incomplete = client.patch(path, headers=headers, json={"first_name": "Mali"})
+        assert incomplete.status_code == 422
+        assert incomplete.json()["code"] == "profile_names_required"
+        assert client.get(path, headers=headers).json() == {"first_name": None, "last_name": None}
+        names = {"first_name": "Mali", "last_name": "Santos"}
+        assert client.patch(path, headers=headers, json=names).json() == names
 
-        replacement = "replacement example passphrase 456"
+        replacement = "reset888"
         with Session(engine) as session, session.begin():
-            set_password(session, RegisterInput(username="legacy", password=replacement), None)
+            set_password(session, NewPasswordInput(username="legacy", password=replacement), None)
         assert client.get("/api/auth/me", headers=bearer(login.json())).status_code == 401
         assert (
             client.post(

@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
   Search,
   ChevronRight,
@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api, errorCode } from "@/lib/api";
-import { historyQuery } from "@/lib/queries";
+import { entryEventsQuery, historyQuery, membersQuery } from "@/lib/queries";
 import {
   displayName,
   quantityError,
@@ -30,6 +30,7 @@ import {
   useAction,
 } from "./ui";
 import { StockEditor } from "./stock-editor";
+import { MemberIdentity } from "./household-members";
 
 const icons = {
   pantry: Archive,
@@ -54,6 +55,8 @@ export function Inventory({
     [loc, setLoc] = useState<Location | "">(""),
     [selected, setSelected] = useState<Stock | null>(null),
     [edit, setEdit] = useState(false);
+  const current = selected && stock.find((item) => item.id === selected.id);
+  const close = () => setSelected(null);
   const needle = search.trim().toLowerCase();
   const matches = stock.filter(
     (s) =>
@@ -178,17 +181,18 @@ export function Inventory({
         </>
       )}
       {selected &&
-        (edit ? (
+        (edit && current ? (
           <StockEditor
-            existing={selected}
+            existing={current}
             day={day}
-            close={() => setSelected(null)}
+            close={close}
             saved={refresh}
           />
         ) : (
           <StockDetail
-            item={selected}
-            close={() => setSelected(null)}
+            item={current ?? selected}
+            active={Boolean(current)}
+            close={close}
             edit={() => setEdit(true)}
             day={day}
             refresh={refresh}
@@ -197,14 +201,21 @@ export function Inventory({
     </>
   );
 }
+type DeductionAttempt = {
+  body: { kind: "used" | "discarded"; quantity: string };
+  key: string;
+};
+
 function StockDetail({
   item,
+  active,
   close,
   edit,
   day,
   refresh,
 }: {
   item: Stock;
+  active: boolean;
   close: () => void;
   edit: () => void;
   day: string;
@@ -216,20 +227,49 @@ function StockDetail({
   const [kind, setKind] = useState<"used" | "discarded">("used"),
     [quantity, setAmount] = useState(""),
     [removing, setRemoving] = useState(false);
-  const attempt = useRef<{ body: string; key: string } | null>(null);
+  const [attempt, setAttempt] = useState<DeductionAttempt | null>(null);
+
+  function save(request: DeductionAttempt) {
+    void action.run(async () => {
+      setAttempt(request);
+      await api(
+        "inventory/" + item.id + "/events?today=" + day,
+        "POST",
+        request.body,
+        {
+          key: request.key,
+        },
+      );
+      refresh();
+      close();
+    });
+  }
+
   return (
     <Dialog title={displayName(item, lang)} close={close} busy={action.busy}>
-      <p className="detail-meta">
-        <Package size={18} />
-        {item.quantity} {labels[item.unit]} · {labels[item.location]} ·{" "}
-        {labels[item.expiry_status]}
-      </p>
-      {removing ? (
+      {active && (
+        <p className="detail-meta">
+          <Package size={18} />
+          {item.quantity} {labels[item.unit]} · {labels[item.location]} ·{" "}
+          {labels[item.expiry_status]}
+        </p>
+      )}
+      {!active ? (
         <>
           <p>
             {t(
-              "Remove this incorrect stock entry? Its recorded use and discard history will be kept.",
-              "ลบรายการที่บันทึกผิดนี้หรือไม่ ประวัติการใช้และการทิ้งจะยังอยู่",
+              "This entry was used up or removed from the shared inventory.",
+              "รายการนี้หมดแล้วหรือถูกลบออกจากคลังส่วนรวม",
+            )}
+          </p>
+          {attempt && action.error && <Retry onClick={() => save(attempt)} />}
+        </>
+      ) : removing ? (
+        <>
+          <p>
+            {t(
+              "Remove this incorrect stock entry? Its history will be kept.",
+              "ลบรายการที่บันทึกผิดนี้หรือไม่ ประวัติของรายการจะยังอยู่",
             )}
           </p>
           <div className="actions">
@@ -260,30 +300,24 @@ function StockDetail({
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              if (
+                attempt?.body.kind === kind &&
+                attempt.body.quantity === quantity
+              ) {
+                save(attempt);
+                return;
+              }
               const error = quantityError(quantity, item.unit, item.quantity);
               if (error) {
                 action.setError(error);
                 return;
               }
-              void action.run(async () => {
-                const body = { kind, quantity };
-                const signature = JSON.stringify(body);
-                if (attempt.current?.body !== signature)
-                  attempt.current = {
-                    body: signature,
-                    key: Array.from(
-                      crypto.getRandomValues(new Uint8Array(16)),
-                      (byte) => byte.toString(16).padStart(2, "0"),
-                    ).join(""),
-                  };
-                await api(
-                  "inventory/" + item.id + "/events?today=" + day,
-                  "POST",
-                  body,
-                  { key: attempt.current.key },
-                );
-                refresh();
-                close();
+              save({
+                body: { kind, quantity },
+                key: Array.from(
+                  crypto.getRandomValues(new Uint8Array(16)),
+                  (byte) => byte.toString(16).padStart(2, "0"),
+                ).join(""),
               });
             }}
           >
@@ -340,49 +374,79 @@ function StockDetail({
         </>
       )}
       <Message code={action.error} />
+      {(!active || !removing) && (
+        <section className="entry-activity">
+          <h3>{t("Entry history", "ประวัติรายการ")}</h3>
+          <HistoryView entryId={item.id} />
+        </section>
+      )}
     </Dialog>
   );
 }
-export function HistoryView() {
+export function HistoryView({ entryId }: { entryId?: string }) {
   const { t, lang } = useText(),
     labels = useLabels();
-  const res = useQuery(historyQuery);
+  const res = useQuery(entryId ? entryEventsQuery(entryId) : historyQuery);
+  const members = useQuery(membersQuery);
+  const people = new Map(members.data?.map((member) => [member.id, member]));
+  const error = errorCode(res.error || members.error);
+  const actions = {
+    added: t("Added", "เพิ่มแล้ว"),
+    used: t("Used", "ใช้แล้ว"),
+    discarded: t("Discarded", "ทิ้งแล้ว"),
+  };
   return (
     <>
-      <Message code={errorCode(res.error)} />
-      {res.error && <Retry onClick={() => void res.refetch()} />}
-      {res.data ? (
+      <Message code={error} />
+      {error && (
+        <Retry
+          onClick={() => {
+            if (res.error) void res.refetch();
+            if (members.error) void members.refetch();
+          }}
+        />
+      )}
+      {res.isPending || (res.data?.length && members.isPending) ? (
+        <Busy />
+      ) : res.data ? (
         res.data.length ? (
           <ul className="stock-list">
             {res.data.map((event) => (
               <li className="history-row" key={event.id}>
-                <span className="item">
-                  <strong>{event.item_name}</strong>
-                  <small>
+                <div className="item history-item">
+                  {!entryId && <strong>{event.item_name}</strong>}
+                  <MemberIdentity
+                    profile={people.get(event.actor_account_id)}
+                  />
+                </div>
+                <div className="history-action">
+                  <strong>
+                    {actions[event.kind]} {event.quantity} {labels[event.unit]}
+                  </strong>
+                  <time dateTime={event.created_at}>
                     {new Date(event.created_at).toLocaleString(lang)}
-                  </small>
-                </span>
-                <span>
-                  {event.kind === "used"
-                    ? t("Used", "ใช้แล้ว")
-                    : t("Discarded", "ทิ้งแล้ว")}{" "}
-                  {event.quantity} {labels[event.unit]}
-                </span>
+                  </time>
+                </div>
               </li>
             ))}
           </ul>
+        ) : entryId ? (
+          <p className="muted">
+            {t(
+              "No recorded activity for this entry.",
+              "ยังไม่มีกิจกรรมที่บันทึกไว้สำหรับรายการนี้",
+            )}
+          </p>
         ) : (
           <Empty
             title={t("No inventory history yet", "ยังไม่มีประวัติ")}
             body={t(
-              "Record use or discard on a grocery entry to see it here.",
-              "บันทึกการใช้หรือทิ้งวัตถุดิบเพื่อดูประวัติที่นี่",
+              "Add groceries or record use or discard to see it here.",
+              "เพิ่มของสด หรือบันทึกการใช้หรือทิ้งเพื่อดูประวัติที่นี่",
             )}
           />
         )
-      ) : (
-        !res.error && <Busy />
-      )}
+      ) : null}
     </>
   );
 }

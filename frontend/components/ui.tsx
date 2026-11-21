@@ -63,9 +63,17 @@ const errors: Record<string, [string, string]> = {
     "Check the fields and try again.",
     "ตรวจสอบข้อมูลแล้วลองอีกครั้ง",
   ],
+  profile_names_required: [
+    "Enter both a first name and a last name.",
+    "กรอกทั้งชื่อและนามสกุล",
+  ],
   invitation_unavailable: [
-    "This code has expired or has already been used.",
-    "รหัสนี้หมดอายุหรือถูกใช้แล้ว",
+    "This invitation code is no longer available.",
+    "รหัสเชิญนี้ใช้ไม่ได้แล้ว",
+  ],
+  invite_forbidden: [
+    "Only the household owner can manage invitations.",
+    "เฉพาะเจ้าของครัวเรือนเท่านั้นที่จัดการคำเชิญได้",
   ],
   already_in_household: [
     "This account already has a household. Reload to open it.",
