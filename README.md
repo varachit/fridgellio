@@ -32,6 +32,7 @@ Our evaluation plan compares recommendations with basic ingredient matching on t
 
 ### Alignment with Build Direction
 
+- **Autonomous & Adaptive AI.** When a cook points the camera at a barcode, Fridgellio reads it automatically and looks up the product. The cook reviews the details and confirms the quantity before adding it to the pantry. When the cook requests meal ideas, Fridgellio generates and checks recipes automatically. Each request uses the latest pantry quantities, use-by dates, and meal preferences. The cook confirms actual use or discard, and the resulting stock changes inform the next request. The planned ranking will use cooking and discard history to improve future suggestions.
 - **AI-Native Products & Operations.** OpenAI adapts recipe suggestions to the live pantry, servings, time, equipment, and preferences for a particular meal. Home cooks can change those constraints and get a new set of ideas. The backend checks each generated recipe against available quantities and equipment before showing it.
 - **Deep Domain AI.** A useful recipe depends on the form, quantity, and urgency of an ingredient. Canned tuna can go into a cooked rice bowl. A preparation that requires raw tuna needs a different ingredient. The project already checks stock and cooking constraints and includes ingredient-form guidance in its recipe prompts. The planned ranking extends that reasoning to use-by dates, available quantities, and what the household actually uses.
 
