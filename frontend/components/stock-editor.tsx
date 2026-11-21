@@ -71,25 +71,82 @@ function payload(draft: Draft) {
     expiry_date: draft.expiry_date || null,
   };
 }
+async function readBarcodeFrame(video: HTMLVideoElement, signal: AbortSignal) {
+  const { videoWidth, videoHeight } = video;
+  if (!videoWidth || !videoHeight)
+    throw new ApiError("barcode_frame_unavailable");
+
+  const canvas = document.createElement("canvas");
+  const scale = Math.min(1, 1920 / Math.max(videoWidth, videoHeight));
+  canvas.width = Math.max(1, Math.round(videoWidth * scale));
+  canvas.height = Math.max(1, Math.round(videoHeight * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new ApiError("barcode_frame_unavailable");
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const photo = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", 0.92);
+  });
+  if (!photo) throw new ApiError("barcode_frame_unavailable");
+
+  const data = new FormData();
+  data.append("photo", photo, "barcode.jpg");
+  const digits = await api<unknown>("barcodes/decode", "POST", data, {
+    signal,
+  });
+  if (typeof digits !== "string" || !/^[0-9]{4,24}$/.test(digits))
+    throw new ApiError("service_unavailable");
+  return digits;
+}
+
 function Scanner({
-  read,
+  found,
   failed,
-  busy,
 }: {
-  read: (video: HTMLVideoElement) => void;
-  failed: () => void;
-  busy: boolean;
+  found: (digits: string) => void;
+  failed: (code: string) => void;
 }) {
   const { t } = useText();
   const video = useRef<HTMLVideoElement>(null);
-  const [ready, setReady] = useState(false);
-  const onFailure = useRef(failed);
-  onFailure.current = failed;
+  const handlers = useRef({ found, failed });
+  handlers.current = { found, failed };
   useEffect(() => {
     const preview = video.current;
     if (!preview) return;
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
     let stream: MediaStream | undefined;
+    let timer: number | undefined;
+
+    const stop = () => {
+      if (signal.aborted) return;
+      controller.abort();
+      window.clearTimeout(timer);
+      stream?.getTracks().forEach((track) => track.stop());
+      preview.srcObject = null;
+    };
+
+    async function scan(element: HTMLVideoElement) {
+      if (signal.aborted) return;
+      let digits: string;
+      try {
+        digits = await readBarcodeFrame(element, signal);
+      } catch (error) {
+        if (signal.aborted) return;
+        const code =
+          error instanceof ApiError ? error.code : "service_unavailable";
+        if (code === "barcode_not_found" || code === "multiple_barcodes") {
+          // Wait for the user to reposition the camera before sending another frame.
+          timer = window.setTimeout(() => void scan(element), 750);
+        } else {
+          stop();
+          handlers.current.failed(code);
+        }
+        return;
+      }
+      if (signal.aborted) return;
+      stop();
+      handlers.current.found(digits);
+    }
 
     async function start(element: HTMLVideoElement) {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -100,39 +157,28 @@ function Scanner({
         },
         audio: false,
       });
-      if (!active) {
+      if (signal.aborted) {
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
       element.srcObject = stream;
       await element.play();
-      if (active) setReady(true);
+      void scan(element);
     }
 
     start(preview).catch(() => {
-      if (active) onFailure.current();
+      if (signal.aborted) return;
+      stop();
+      handlers.current.failed("camera");
     });
-    return () => {
-      active = false;
-      stream?.getTracks().forEach((track) => track.stop());
-      preview.srcObject = null;
-    };
+    return stop;
   }, []);
   return (
     <>
       <video className="scanner" ref={video} autoPlay playsInline muted />
-      <button
-        type="button"
-        className="secondary"
-        disabled={!ready || busy}
-        onClick={() => {
-          if (video.current) read(video.current);
-        }}
-      >
-        {busy
-          ? t("Reading barcode…", "กำลังอ่านบาร์โค้ด…")
-          : t("Read barcode", "อ่านบาร์โค้ด")}
-      </button>
+      <p className="hint" role="status">
+        {t("Point the camera at one barcode.", "เล็งกล้องไปที่บาร์โค้ดหนึ่งอัน")}
+      </p>
     </>
   );
 }
@@ -178,35 +224,10 @@ export function StockEditor({
     action.setError(null);
     setInvalid({});
   }
-  function readBarcode(video: HTMLVideoElement) {
-    void action.run(async () => {
-      const { videoWidth, videoHeight } = video;
-      if (!videoWidth || !videoHeight)
-        throw new ApiError("barcode_frame_unavailable");
-
-      const canvas = document.createElement("canvas");
-      const scale = Math.min(1, 1920 / Math.max(videoWidth, videoHeight));
-      canvas.width = Math.max(1, Math.round(videoWidth * scale));
-      canvas.height = Math.max(1, Math.round(videoHeight * scale));
-      const context = canvas.getContext("2d");
-      if (!context) throw new ApiError("barcode_frame_unavailable");
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const photo = await new Promise<Blob | null>((resolve) => {
-        canvas.toBlob(resolve, "image/jpeg", 0.92);
-      });
-      if (!photo) throw new ApiError("barcode_frame_unavailable");
-
-      const data = new FormData();
-      data.append("photo", photo, "barcode.jpg");
-      const digits = await api<unknown>("barcodes/decode", "POST", data);
-      if (typeof digits !== "string" || !/^[0-9]{4,24}$/.test(digits))
-        throw new ApiError("service_unavailable");
-      setCode(digits);
-      setScan(false);
-    });
-  }
   function lookup(digits: string) {
     void action.run(async () => {
+      setCode(digits);
+      setScan(false);
       const { data, source } = await client.fetchQuery({
         queryKey: ["barcodes", digits, lang],
         queryFn: async ({ signal }) => {
@@ -297,7 +318,6 @@ export function StockEditor({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            setScan(false);
             lookup(code);
           }}
         >
@@ -316,17 +336,16 @@ export function StockEditor({
             </label>
             {scan && (
               <Scanner
-                read={readBarcode}
-                failed={() => {
+                found={lookup}
+                failed={(code) => {
                   setScan(false);
-                  action.setError("camera");
+                  action.setError(code);
                 }}
-                busy={action.busy}
               />
             )}
             <div className="actions">
               <button className="primary">
-                {action.busy && !scan
+                {action.busy
                   ? t("Looking up…", "กำลังค้นหา…")
                   : t("Look up product", "ค้นหาสินค้า")}
               </button>

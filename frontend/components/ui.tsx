@@ -124,14 +124,6 @@ const errors: Record<string, [string, string]> = {
     "Couldn’t capture a camera image. Try again or type the barcode digits.",
     "จับภาพจากกล้องไม่ได้ ลองใหม่หรือพิมพ์เลขบาร์โค้ด",
   ],
-  barcode_not_found: [
-    "No barcode found. Move closer and try again, or type the digits.",
-    "ไม่พบบาร์โค้ด ขยับเข้าใกล้แล้วลองใหม่ หรือพิมพ์เลขบาร์โค้ด",
-  ],
-  multiple_barcodes: [
-    "More than one barcode found. Frame one barcode and try again.",
-    "พบบาร์โค้ดมากกว่าหนึ่งอัน จัดให้เห็นบาร์โค้ดเดียวแล้วลองใหม่",
-  ],
   photo: [
     "Photo analysis is unavailable. Try again later or add the item manually.",
     "ยังวิเคราะห์รูปไม่ได้ ลองภายหลังหรือกรอกเอง",
