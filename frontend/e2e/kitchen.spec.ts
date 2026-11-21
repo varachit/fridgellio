@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { localDay } from "../lib/pantry";
 
@@ -878,6 +879,16 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
       },
     });
   });
+  let imageRequests = 0;
+  await page.route("**/api/menus/recommendations/image", async (route) => {
+    imageRequests++;
+    expect(route.request().postDataJSON()).toEqual({
+      name: dish.name.en,
+      ingredients: [eggs.en],
+    });
+    const image = await readFile("public/illustrations/dashboard.webp");
+    await route.fulfill({ json: { webp_base64: image.toString("base64") } });
+  });
   const result = page.waitForResponse((response) =>
     response.url().endsWith("/api/menus/recommendations"),
   );
@@ -906,6 +917,9 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
       .getByRole("region", { name: "Recommended recipes" })
       .getByText(dish.steps[0].en),
   ).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: `AI illustration of ${dish.name.en}` }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Switch to Thai" }).click();
   await expect(
     page.getByRole("region", { name: "เมนูแนะนำ" }).getByText(dish.steps[0].th),
@@ -913,6 +927,10 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
   await expect(page.getByRole("region", { name: "เมนูแนะนำ" })).toContainText(
     "ไมโครเวฟ",
   );
+  await expect(
+    page.getByRole("img", { name: `ภาพประกอบเมนู ${dish.name.th} สร้างโดย AI` }),
+  ).toBeVisible();
+  expect(imageRequests).toBe(1);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
   expect(

@@ -1,8 +1,44 @@
+import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+
+from fridgellio import recommendations
+from fridgellio.errors import ApiError
 from fridgellio.recommendations import (
     RecipeSuggestions,
     RecommendationPreview,
     validate_suggestions,
 )
+
+
+@pytest.mark.parametrize("encoded", ["dGVzdA==", None])
+def test_recipe_image_returns_webp_or_reports_failure(monkeypatch, encoded):
+    quota = AsyncMock(return_value=True)
+    monkeypatch.setattr(recommendations, "take_attempt", quota)
+    generate = AsyncMock(return_value=SimpleNamespace(data=[SimpleNamespace(b64_json=encoded)]))
+    client = Mock()
+    client.with_options.return_value.images.generate = generate
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(openai_client=client)))
+    session = SimpleNamespace(commit=AsyncMock())
+
+    async def generate_image():
+        return await recommendations.recipe_image(
+            recommendations.RecipeImageRequest(name="Rice bowl", ingredients=["Rice"]),
+            SimpleNamespace(account_id="account"),
+            session,
+            request,
+        )
+
+    if encoded:
+        assert asyncio.run(generate_image()).webp_base64 == encoded
+        assert generate.await_args.kwargs["output_format"] == "webp"
+        assert "Rice bowl" in generate.await_args.kwargs["prompt"]
+    else:
+        with pytest.raises(ApiError) as error:
+            asyncio.run(generate_image())
+        assert error.value.code == "recipe_image_unavailable"
 
 
 def test_recommendations_discard_invalid_candidates_and_cap_at_five():

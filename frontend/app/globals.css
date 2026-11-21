@@ -1357,3 +1357,20 @@ details label {
     animation: none;
   }
 }
+.recipe-illustration {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: 0.75rem;
+  margin-block: 0.75rem;
+}
+.recipe-image-status {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.5rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  text-align: center;
+}

@@ -42,6 +42,7 @@ async function forward(request: NextRequest, context: Context) {
     if (
       route === "menus" ||
       route === "menus/recommendations" ||
+      route === "menus/recommendations/image" ||
       route === "photos/analyze"
     )
       init.signal = AbortSignal.timeout(90_000);

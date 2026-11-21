@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { errorCode } from "@/lib/api";
+import { ImageOff } from "lucide-react";
+import { api, errorCode } from "@/lib/api";
 import { equipmentQuery, foodsQuery, menusQuery } from "@/lib/queries";
 import type { Stock } from "@/lib/pantry";
 import {
@@ -16,6 +17,58 @@ import {
 import { MealForm } from "./meal-form";
 import { equipmentPresets } from "./equipment-picker";
 import { Busy, Message, Retry, useLabels, useText } from "./ui";
+
+function RecipeIllustration({
+  recipe,
+}: {
+  recipe: RecommendationPreview["recipes"][number];
+}) {
+  const { lang, t } = useText();
+  const name = recipe.name.en;
+  const ingredients = [
+    ...new Set(recipe.ingredients.map((item) => item.name.en)),
+  ]
+    .sort()
+    .slice(0, 30);
+  const image = useQuery({
+    queryKey: ["recipe-image", name, ingredients],
+    queryFn: ({ signal }) =>
+      api<{ webp_base64: string }>(
+        "menus/recommendations/image",
+        "POST",
+        { name, ingredients },
+        { signal },
+      ),
+    retry: false,
+    staleTime: Infinity,
+    refetchOnMount: false,
+  });
+  const description = t(
+    `AI illustration of ${recipe.name[lang]}`,
+    `ภาพประกอบเมนู ${recipe.name[lang]} สร้างโดย AI`,
+  );
+
+  return image.data ? (
+    <img
+      className="recipe-illustration"
+      src={`data:image/webp;base64,${image.data.webp_base64}`}
+      width={1536}
+      height={1024}
+      alt={description}
+    />
+  ) : (
+    <div className="recipe-illustration recipe-image-status" role="status">
+      {image.isPending ? (
+        t("Generating illustration…", "กำลังสร้างภาพประกอบ…")
+      ) : (
+        <>
+          <ImageOff size={20} aria-hidden="true" />
+          {t("Illustration unavailable", "ภาพประกอบไม่พร้อมใช้งาน")}
+        </>
+      )}
+    </div>
+  );
+}
 
 function SavedMenus() {
   const { t, lang } = useText();
@@ -185,6 +238,7 @@ export function Meals({
             {preview.recipes.map((recipe) => (
               <article className="dish" key={recipe.name.en}>
                 <h3>{recipe.name[lang]}</h3>
+                <RecipeIllustration recipe={recipe} />
                 <p>
                   {t(`${recipe.minutes} min`, `${recipe.minutes} นาที`)} ·{" "}
                   {difficulties[recipe.difficulty][lang]}
