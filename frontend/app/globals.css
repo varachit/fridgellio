@@ -516,6 +516,19 @@ nav a[aria-current="page"] {
   object-fit: cover;
   border-radius: inherit;
 }
+.members-list {
+  max-width: 60rem;
+}
+.member-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.member-summary small,
+.members-list li > small {
+  flex-shrink: 0;
+}
 .profile-names {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
@@ -606,6 +619,35 @@ nav a[aria-current="page"] {
 }
 .stock-row:hover {
   background: #eff1e7;
+}
+.history-item,
+.history-action {
+  display: grid;
+  gap: 0.3rem;
+}
+.history-item .user {
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+.history-item .avatar {
+  width: 1.8rem;
+  height: 1.8rem;
+  font-size: 0.8rem;
+}
+.history-action {
+  max-width: 50%;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+.history-action time {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.entry-activity {
+  margin-top: 1.25rem;
+}
+.entry-activity .stock-list {
+  margin-bottom: 0;
 }
 .item {
   flex: 1;
@@ -797,6 +839,17 @@ details label {
 }
 .panel .name-list {
   margin: 1.3rem 0 0;
+}
+.invitation-list li {
+  flex-wrap: wrap;
+}
+.invitation-summary {
+  display: grid;
+  gap: 0.25rem;
+}
+.invitation-code {
+  flex-basis: 100%;
+  min-width: 0;
 }
 .name-list li {
   overflow-wrap: anywhere;

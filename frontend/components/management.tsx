@@ -1,14 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, ChefHat, Leaf, KeyRound } from "lucide-react";
+import { Plus, ChefHat, Leaf } from "lucide-react";
 import { api, errorCode, ApiError } from "@/lib/api";
 import { foodsQuery, menusQuery } from "@/lib/queries";
 import { EquipmentPicker } from "./equipment-picker";
+import { ProfileSettings } from "./profile-settings";
 import {
   eligibleEntries,
   type Named,
-  type Household,
   type Stock,
   type Menu,
 } from "@/lib/pantry";
@@ -135,58 +135,12 @@ function FoodsToAvoid() {
     </section>
   );
 }
-export function SettingsView({ household }: { household: Household }) {
-  const { t, lang } = useText(),
-    action = useAction();
-  const [invite, setInvite] = useState<{
-    token: string;
-    expires_at: string;
-  } | null>(null);
+export function SettingsView({ username }: { username: string }) {
   return (
     <div className="panels">
+      <ProfileSettings username={username} />
       <FoodsToAvoid />
       <EquipmentPicker />
-      {household.can_invite && (
-        <section className="panel">
-          <h2>
-            <KeyRound />
-            {t("Invite a member", "เชิญสมาชิก")}
-          </h2>
-          <p>
-            {t(
-              "Share a single-use code with someone at home. Each code expires after 24 hours.",
-              "แชร์รหัสเชิญแบบใช้ครั้งเดียวให้สมาชิกในบ้าน รหัสมีอายุ 24 ชั่วโมง",
-            )}
-          </p>
-          <button
-            disabled={action.busy}
-            className="secondary"
-            onClick={() =>
-              void action.run(async () =>
-                setInvite(await api("household/invitations", "POST")),
-              )
-            }
-          >
-            {t("Create invitation code", "สร้างรหัสเชิญ")}
-          </button>
-          <Message code={action.error} />
-          {invite && (
-            <label>
-              {t("Invitation code", "รหัสเชิญ")}
-              <input
-                readOnly
-                aria-label={t("Invitation code", "รหัสเชิญ")}
-                value={invite.token}
-                onFocus={(e) => e.target.select()}
-              />
-              <small>
-                {t("Expires", "หมดอายุ")}{" "}
-                {new Date(invite.expires_at).toLocaleString(lang)}
-              </small>
-            </label>
-          )}
-        </section>
-      )}
     </div>
   );
 }

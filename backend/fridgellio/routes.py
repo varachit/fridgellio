@@ -102,6 +102,17 @@ async def create_stock(
 ) -> StockView:
     entry = StockEntry(household_id=member.household_id, **body.model_dump())
     session.add(entry)
+    await session.flush()
+    session.add(
+        InventoryEvent(
+            stock_id=entry.id,
+            actor_account_id=member.account_id,
+            item_name=entry.name,
+            kind="added",
+            quantity=entry.quantity,
+            unit=entry.unit,
+        )
+    )
     await session.commit()
     return stock_view(entry, local_day(today))
 
