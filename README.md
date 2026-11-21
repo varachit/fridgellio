@@ -24,6 +24,8 @@ Use the app in English or Thai. Fridgellio saves both language versions of AI-ge
 | `docs/backend-todo.md` | Backend routes, implementation checklist, and verification status |
 | `frontend/` | English and Thai Next.js application with NextAuth, TanStack Query, and Zustand, managed with `pnpm` |
 | `backend/` | FastAPI service managed with `uv`, including PostgreSQL persistence, account and session management, barcode lookup, and Swagger UI |
+| `assets/brand/` | Lucide-derived SVG logo variants and usage guidance |
+| `frontend/experimental/` | Standalone Three.js illustration and Framer Motion UI preview, with exported GLB models |
 
 FastAPI stores shared inventory, cooking equipment, and each member's private settings in PostgreSQL. It calls Open Food Facts for barcode lookups. The first backend pass reserves routes for OpenAI photo analysis and bilingual menu generation. See the [backend stack](docs/backend-stack.md) for integration and Swagger details.
 
@@ -83,3 +85,5 @@ Household members should be able to add groceries to the same pantry and get mea
 See [Product requirements](docs/requirements.md) for detailed behavior and acceptance criteria.
 
 See [Design tokens and UX proposal](docs/design-tokens.md) for the proposed green-and-white visual system, Lucide icons, accessibility targets, and low-effort pantry workflows. Proposed features beyond the current first release are marked in that document.
+
+The landing-page and dashboard illustrations have an independent [Three.js preview and verification workflow](frontend/experimental/README.md), with Framer Motion (the Motion package) animating the surrounding UI. Install its pinned dependencies with `npm ci --prefix frontend/experimental`, serve the repository with `python3 -m http.server 8765 --bind 127.0.0.1`, and open `http://127.0.0.1:8765/frontend/experimental/`. This standalone preview runs independently of the application and backend.

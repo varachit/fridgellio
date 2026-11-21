@@ -92,7 +92,7 @@ Use subtle borders and whitespace to establish hierarchy. Avoid heavy shadows on
 
 ## Framer Motion
 
-Use Framer Motion for component animations through the current `motion` package, importing from `motion/react` as described in the [Motion for React installation guide](https://motion.dev/docs/react-installation). Motion for React is the current name of Framer Motion. When frontend implementation begins, install it in `apps/web/` with `pnpm add motion`. This document has not installed the dependency.
+Use Framer Motion for component animations through the current `motion` package, importing from `motion/react` in React as described in the [Motion for React installation guide](https://motion.dev/docs/react-installation). Motion for React is the current name of Framer Motion. The standalone [illustration preview](../frontend/experimental/README.md) installs a pinned Motion dependency and uses its browser JavaScript API for UI animations. For React application integration, add the dependency in `frontend/` with `pnpm add motion`.
 
 | Token | Value | Usage |
 | --- | --- | --- |
@@ -115,7 +115,15 @@ Set `MotionConfig reducedMotion="user"` in the animation provider. Use `useReduc
 
 Use `AnimatePresence` with stable ID-based keys for exit animations. Do not use array indexes as keys for inventory or meals. Avoid animated reranking while users are reading, celebration animations, and spinning icons while reading recipes. During AI generation, show “Finding meals from your pantry…” without invented progress percentages or time estimates.
 
+## Three.js illustrations
+
+Use the [Three.js illustration collection](../frontend/experimental/README.md) for landing-page and dashboard decoration: rounded forms, matte materials, Emerald and cream surfaces, and soft lighting. Keep the landing composition prominent and the dashboard composition compact. Canvas content is decorative; text, data, and actions remain accessible HTML. Three.js manages its own scene transforms, while Framer Motion manages surrounding UI transitions. Honor reduced motion, pause offscreen rendering, and retain a static fallback when WebGL is unavailable.
+
+On refrigerator hover, open the hinged doors to reveal stocked shelves and give their ingredients one gentle hop. On dashboard board hover, animate only the bowl's ingredients with a short staggered hop. Avoid looping bounces, close the fridge smoothly on pointer exit, and allow touch taps without blocking scrolling. Under reduced motion, change the door state immediately and omit all hops. Hover content is decorative and must not convey exclusive pantry information.
+
 ## Lucide icons
+
+The brand mark combines a simplified Refrigerator outline with one integrated Sparkles shape. Use the [brand assets and usage guidance](../assets/brand/README.md) for logo files; do not reconstruct the logo by overlapping two UI icons.
 
 Use outline icons at 20 px with `strokeWidth={2}`; use 24 px for navigation and 32 px for empty states. Match the text color. Do not mix in emoji or other icon libraries.
 
@@ -246,7 +254,7 @@ Example: 100 g of spinach, 75 g actually used → 25 g remaining, with a 75 g us
 
 ## Tailwind CSS v4 example
 
-This is a starting point for future implementation. No dependencies have been added and no repository version has been selected. Use `@theme inline` to map semantic tokens to Tailwind's palette.
+This is a proposal for future Tailwind adoption; the existing Next.js application currently uses custom CSS. The standalone illustration preview has separate pinned Three.js and Motion dependencies. Use `@theme inline` to map semantic tokens to Tailwind's palette.
 
 ```css
 @import "tailwindcss";

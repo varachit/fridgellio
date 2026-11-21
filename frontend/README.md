@@ -65,3 +65,7 @@ pnpm test:e2e
 Playwright starts its own FastAPI and Next.js servers on loopback ports 8310 and 3310. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to use a preinstalled Chromium binary. The suite checks backend session issuance, independent sign-out, expiry, account cache isolation, a phone viewport, and actual stock mutations. Barcode product data in the browser test comes from a controlled response. The backend also has [barcode and validation tests](../backend/tests/test_validation_and_barcode.py).
 
 The sign-in photograph is a locally served ImageGen asset.
+
+## Experimental illustration preview
+
+The independent [experimental preview](experimental/README.md) contains Three.js refrigerator and vegetable models, hover interactions, and Framer Motion UI animations. It runs on a static server and is not a Next.js application route. See its guide for setup, model exports, screenshots, and checks.
