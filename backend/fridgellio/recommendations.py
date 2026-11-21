@@ -2,7 +2,7 @@ import json
 from asyncio import timeout
 from collections import defaultdict
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Request
@@ -26,6 +26,11 @@ from .schemas import (
 )
 
 router = APIRouter(prefix="/menus", tags=["Menus"])
+PriceCoverage = Literal["full", "partial", "none"]
+
+
+def money(value: Decimal) -> Decimal:
+    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 class MealPreferences(InputModel):
@@ -60,10 +65,17 @@ class AvailableIngredient(BaseModel):
     name_th: str | None
     quantity: Decimal
     unit: Unit
+    estimated_price: Decimal | None = None
+    price_coverage: PriceCoverage = "none"
+    priced_quantity: Decimal = Field(default=Decimal(0), exclude=True)
 
     @field_serializer("quantity", when_used="json")
     def serialize_quantity(self, value: Decimal) -> str:
         return format(value.normalize(), "f")
+
+    @field_serializer("estimated_price", when_used="json")
+    def serialize_price(self, value: Decimal | None) -> str | None:
+        return format(value, ".2f") if value is not None else None
 
 
 class RecommendationPreview(BaseModel):
@@ -96,6 +108,16 @@ class RecipeIngredient(BaseModel):
     name: LocalizedText
     quantity: Decimal
     unit: Unit
+    estimated_price: Decimal | None = None
+    price_coverage: PriceCoverage = "none"
+
+    @field_serializer("quantity", when_used="json")
+    def serialize_quantity(self, value: Decimal) -> str:
+        return format(value.normalize(), "f")
+
+    @field_serializer("estimated_price", when_used="json")
+    def serialize_price(self, value: Decimal | None) -> str | None:
+        return format(value, ".2f") if value is not None else None
 
 
 class RecommendedRecipe(BaseModel):
@@ -105,6 +127,12 @@ class RecommendedRecipe(BaseModel):
     steps: list[LocalizedText]
     minutes: int
     difficulty: Literal["easy", "medium", "hard"]
+    estimated_price: Decimal | None = None
+    price_coverage: PriceCoverage = "none"
+
+    @field_serializer("estimated_price", when_used="json")
+    def serialize_price(self, value: Decimal | None) -> str | None:
+        return format(value, ".2f") if value is not None else None
 
 
 class RecipeImageRequest(InputModel):
@@ -205,12 +233,28 @@ def validate_suggestions(
                     name=LocalizedText(en=item.name_en or item.name, th=item.name_th or item.name),
                     quantity=quantity,
                     unit=item.unit,
+                    estimated_price=(
+                        money(quantity * item.estimated_price / item.priced_quantity)
+                        if item.estimated_price is not None and item.priced_quantity > 0
+                        else None
+                    ),
+                    price_coverage=item.price_coverage,
                 )
             )
         else:
             for key, quantity in used.items():
                 stock[key] -= quantity
             titles.add(title)
+            priced = [
+                item.estimated_price for item in ingredients if item.estimated_price is not None
+            ]
+            coverage: PriceCoverage = (
+                "full"
+                if ingredients and all(item.price_coverage == "full" for item in ingredients)
+                else "partial"
+                if priced
+                else "none"
+            )
             recipes.append(
                 RecommendedRecipe(
                     name=recipe.name,
@@ -219,6 +263,8 @@ def validate_suggestions(
                     steps=recipe.steps,
                     minutes=recipe.minutes,
                     difficulty=recipe.difficulty,
+                    estimated_price=money(sum(priced, Decimal(0))) if priced else None,
+                    price_coverage=coverage,
                 )
             )
             if len(recipes) == current.recipe_limit:
@@ -292,6 +338,11 @@ def available_ingredients(
             ingredient.quantity += quantity
             ingredient.name_en = ingredient.name_en or entry.name_en
             ingredient.name_th = ingredient.name_th or entry.name_th
+            if entry.price is not None:
+                ingredient.estimated_price = (
+                    ingredient.estimated_price or Decimal(0)
+                ) + entry.price
+                ingredient.priced_quantity += quantity
         else:
             grouped[key] = AvailableIngredient(
                 name=entry.name,
@@ -299,7 +350,19 @@ def available_ingredients(
                 name_th=entry.name_th,
                 quantity=quantity,
                 unit=unit,
+                estimated_price=entry.price,
+                priced_quantity=quantity if entry.price is not None else Decimal(0),
             )
+    for ingredient in grouped.values():
+        ingredient.price_coverage = (
+            "full"
+            if ingredient.priced_quantity == ingredient.quantity
+            else "partial"
+            if ingredient.priced_quantity > 0
+            else "none"
+        )
+        if ingredient.estimated_price is not None:
+            ingredient.estimated_price = money(ingredient.estimated_price)
     return list(grouped.values())
 
 

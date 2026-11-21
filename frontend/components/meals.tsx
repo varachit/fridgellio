@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ImageOff } from "lucide-react";
 import { api, errorCode } from "@/lib/api";
 import { equipmentQuery, foodsQuery, menusQuery } from "@/lib/queries";
-import type { Stock } from "@/lib/pantry";
+import { formatPrice, type Stock } from "@/lib/pantry";
 import {
   cuisineOptions,
   dietOptions,
@@ -246,6 +246,17 @@ export function Meals({
                   {t(`${recipe.minutes} min`, `${recipe.minutes} นาที`)} ·{" "}
                   {difficulties[recipe.difficulty][lang]}
                 </p>
+                {recipe.estimated_price != null && (
+                  <p>
+                    <strong>{t("Estimated cost", "ค่าใช้จ่ายโดยประมาณ")} </strong>
+                    {formatPrice(recipe.estimated_price, lang)}
+                    {recipe.price_coverage === "partial" &&
+                      t(
+                        " · based on groceries with prices",
+                        " · คำนวณจากวัตถุดิบที่มีราคา",
+                      )}
+                  </p>
+                )}
                 <h4>{t("Ingredients", "วัตถุดิบ")}</h4>
                 <ul>
                   {recipe.ingredients.map((ingredient, index) => (
@@ -296,6 +307,10 @@ export function Meals({
                     </span>
                     <span>
                       {item.quantity} {labels[item.unit]}
+                      {item.estimated_price != null &&
+                        ` · ${formatPrice(item.estimated_price, lang)}`}
+                      {item.price_coverage === "partial" &&
+                        t(" (priced portion)", " (เฉพาะส่วนที่มีราคา)")}
                     </span>
                   </li>
                 ))}

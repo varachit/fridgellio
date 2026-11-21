@@ -26,6 +26,9 @@ VALID_STOCK = {"name": "Spinach", "quantity": "0.15", "unit": "kg", "location": 
         {"quantity": "0.0000001"},
         {"quantity": 0.15},
         {"quantity": "NaN"},
+        {"price": "-1"},
+        {"price": "12.345"},
+        {"price": 12.34},
         {"expiry_date": "2026-02-30"},
         {"expiry_date": "1781049600"},
         {"name": "  "},
@@ -39,7 +42,9 @@ def test_stock_validation(overrides):
 
 
 def test_expiry_boundaries_and_exact_quantity():
-    assert str(StockCreate.model_validate(VALID_STOCK).quantity) == "0.15"
+    stock = StockCreate.model_validate(VALID_STOCK | {"price": "42.50"})
+    assert str(stock.quantity) == "0.15"
+    assert str(stock.price) == "42.50"
     today = date(2026, 6, 10)
     dates = [date(2026, 6, day) for day in (9, 10, 11, 13, 14)]
     assert [expiry_status(expiry, today) for expiry in [*dates, None]] == [

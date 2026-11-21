@@ -8,6 +8,7 @@ import {
   units,
   validDate,
   quantityError,
+  priceError,
   packageMeasurement,
   type Stock,
   type Unit,
@@ -27,6 +28,7 @@ type Draft = {
   name_en: string;
   name_th: string;
   quantity: string;
+  price: string;
   unit: Unit | "";
   location: Location | "";
   expiry_date: string;
@@ -50,6 +52,7 @@ const blank: Draft = {
   name_en: "",
   name_th: "",
   quantity: "",
+  price: "",
   unit: "",
   location: "",
   expiry_date: "",
@@ -61,6 +64,7 @@ function fromStock(stock?: Stock): Draft {
     name_en: stock.name_en ?? "",
     name_th: stock.name_th ?? "",
     quantity: stock.quantity,
+    price: stock.price ?? "",
     unit: stock.unit,
     location: stock.location,
     expiry_date: stock.expiry_date ?? "",
@@ -72,6 +76,7 @@ function payload(draft: Draft) {
     name_en: draft.name_en.trim() || null,
     name_th: draft.name_th.trim() || null,
     quantity: draft.quantity,
+    price: draft.price || null,
     unit: draft.unit,
     location: draft.location,
     expiry_date: draft.expiry_date || null,
@@ -358,6 +363,8 @@ export function StockEditor({
             if (!draft.location) errors.location = "required";
             const q = quantityError(draft.quantity, draft.unit || "g");
             if (q) errors.quantity = q;
+            const price = priceError(draft.price);
+            if (price) errors.price = price;
             if (!validDate(draft.expiry_date)) errors.expiry_date = "date";
             setInvalid(errors);
             if (Object.keys(errors).length) return;
@@ -451,6 +458,18 @@ export function StockEditor({
                 </select>
               </label>
             </div>
+            <label>
+              {t("Price paid (optional, THB)", "ราคาที่จ่าย (ถ้ามี, บาท)")}
+              <input
+                inputMode="decimal"
+                maxLength={13}
+                placeholder="0.00"
+                aria-invalid={!!invalid.price}
+                value={draft.price}
+                onChange={(e) => change("price", e.target.value)}
+              />
+              {fieldError("price")}
+            </label>
             <label>
               {t("Storage location", "ที่จัดเก็บ")}
               <select

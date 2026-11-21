@@ -108,6 +108,10 @@ class StockEntry(Base):
         CheckConstraint("unit IN ('each', 'g', 'kg', 'ml', 'l')", name="ck_stock_unit"),
         CheckConstraint("unit <> 'each' OR quantity = trunc(quantity)", name="ck_stock_count"),
         CheckConstraint(
+            "price IS NULL OR (price >= 0 AND price <> 'NaN'::numeric)",
+            name="ck_stock_price",
+        ),
+        CheckConstraint(
             "location IN ('pantry', 'fridge', 'freezer', 'other')",
             name="ck_stock_location",
         ),
@@ -120,6 +124,7 @@ class StockEntry(Base):
     name_en: Mapped[str | None] = mapped_column(String(200))
     name_th: Mapped[str | None] = mapped_column(String(200))
     quantity: Mapped[Decimal] = mapped_column(Numeric(18, 6))
+    price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     unit: Mapped[str] = mapped_column(String(4))
     location: Mapped[str] = mapped_column(String(7))
     expiry_date: Mapped[date | None]

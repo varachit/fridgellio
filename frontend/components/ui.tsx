@@ -171,6 +171,10 @@ const errors: Record<string, [string, string]> = {
     "Enter a positive quantity with up to 12 whole and 6 decimal digits.",
     "กรอกจำนวนบวกที่มีเลขจำนวนเต็มไม่เกิน 12 หลักและทศนิยมไม่เกิน 6 หลัก",
   ],
+  price: [
+    "Enter a price with up to 10 whole and 2 decimal digits.",
+    "กรอกราคาโดยมีจำนวนเต็มไม่เกิน 10 หลักและทศนิยมไม่เกิน 2 หลัก",
+  ],
   whole: [
     "Enter a whole number for individual items.",
     "กรอกจำนวนชิ้นเป็นจำนวนเต็ม",

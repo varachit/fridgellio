@@ -14,6 +14,7 @@ import { api, errorCode } from "@/lib/api";
 import { entryEventsQuery, historyQuery, membersQuery } from "@/lib/queries";
 import {
   displayName,
+  formatPrice,
   quantityError,
   locations,
   type Stock,
@@ -88,6 +89,8 @@ export function Inventory({
                   <small>
                     {labels[item.location]} · {item.quantity}{" "}
                     {labels[item.unit]}
+                    {item.price != null &&
+                      ` · ${formatPrice(item.price, lang)}`}
                   </small>
                 </span>
                 <span className="dates">

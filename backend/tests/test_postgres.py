@@ -117,7 +117,14 @@ def household_accounts(client):
 
 
 def add_stock(
-    client, member, name="Spinach", quantity="100", expiry_date=None, *, location="fridge"
+    client,
+    member,
+    name="Spinach",
+    quantity="100",
+    expiry_date=None,
+    *,
+    location="fridge",
+    price=None,
 ):
     result = client.post(
         "/api/inventory",
@@ -125,6 +132,7 @@ def add_stock(
         json={
             "name": name,
             "quantity": quantity,
+            "price": price,
             "unit": "g",
             "location": location,
             "expiry_date": expiry_date,
@@ -291,7 +299,7 @@ def test_concurrent_deduction_and_retry(client, household_accounts):
         client.post("/api/household/join", headers=member, json={"token": invite}).status_code
         == 201
     )
-    entry = add_stock(client, owner)
+    entry = add_stock(client, owner, price="40.00")
     path = f"/api/inventory/{entry}/events"
     payload = {"kind": "used", "quantity": "75"}
 
@@ -306,6 +314,7 @@ def test_concurrent_deduction_and_retry(client, household_accounts):
     replay = deduct(winning_member)
     assert replay.status_code == 200
     assert replay.json()["entry"]["quantity"] == "25"
+    assert replay.json()["entry"]["price"] == "10.00"
     events = client.get(path, headers=member).json()
     assert client.get(path, headers=owner).json() == events
     assert len(events) == 2

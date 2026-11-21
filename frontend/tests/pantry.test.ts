@@ -4,6 +4,7 @@ import {
   localDay,
   validDate,
   quantityError,
+  priceError,
   packageMeasurement,
   eligibleEntries,
   displayName,
@@ -20,6 +21,7 @@ test("expiry alerts count positive stock entries strictly before the local day",
     location: "fridge",
     unit: "g",
     quantity: "100",
+    price: null,
     expiry_date: "2026-11-20",
     expiry_status: "due_today",
   };
@@ -61,6 +63,15 @@ test("quantities preserve database precision and whole-item rules", () => {
     quantityError("999999999999.999999", "g", "999999999999.999998"),
     "insufficient_stock",
   );
+});
+
+test("prices accept optional Thai baht amounts with two decimals", () => {
+  assert.equal(priceError(""), null);
+  assert.equal(priceError("0"), null);
+  assert.equal(priceError("42.50"), null);
+  assert.equal(priceError("-1"), "price");
+  assert.equal(priceError("12.345"), "price");
+  assert.equal(priceError("10000000000.00"), "price");
 });
 test("barcode package measurements prefill valid stock quantities and units", () => {
   assert.deepEqual(packageMeasurement(170, " G "), {
@@ -111,6 +122,7 @@ test("menu eligibility includes undated and due-today stock and compares both la
     location: "pantry",
     unit: "g",
     quantity: "100",
+    price: null,
     expiry_date: null,
     expiry_status: "no_date",
   };
