@@ -8,6 +8,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from openai import AsyncOpenAI
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -131,6 +132,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     follow_redirects=False,
                 )
             )
+            app.state.openai_client = None
+            api_key = settings.openai_api_key
+            if api_key and (key := api_key.get_secret_value().strip()):
+                app.state.openai_client = await stack.enter_async_context(AsyncOpenAI(api_key=key))
             yield
 
     app = FastAPI(
