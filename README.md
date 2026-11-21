@@ -8,7 +8,7 @@ The first release is designed for household members who shop and cook. They shar
 
 ## First-release experience
 
-1. Add groceries manually, take a photo for AI suggestions, or open the barcode camera and select **Read barcode** to fill in its digits. Select **Look up product** to search for a product match. Review the name, quantity, unit, and storage location before saving. Add an expiry date when available.
+1. Add groceries manually, take a photo for AI suggestions, or select **Scan barcode** and point the camera at a barcode. The app reads the digits and looks up the product automatically. You can also type the digits and select **Look up product**. Review the name, quantity, unit, and storage location before saving. Add an expiry date when available.
 2. Open **Use soon** to see food dated within the next three days, with the closest dates first. Past-date entries appear in a separate list.
 3. In **Settings**, select a card for each piece of cooking equipment your household has. Select it again to remove it. Add any ingredients you want to exclude under **Foods to avoid**. In **Meal ideas**, request a menu using the shared pantry, selected equipment, and your personal food preferences. The menu shows what to make, how much to use, which equipment is needed, and how to cook it.
 4. Record what you used directly in inventory after cooking. Open **History** or an item's **Entry history** to see who added, used, or discarded stock and in what quantity. Open **Household** to see who shares your pantry. The owner can create and remove unused invitation codes such as `K7RM-3X9D`.
@@ -29,7 +29,7 @@ Use the app in English or Thai. Fridgellio saves both language versions of AI-ge
 
 FastAPI stores shared inventory, cooking equipment, and each member's private settings in PostgreSQL. Barcode lookup checks verified corrections by exact barcode, then uses OpenAI web search when configured, with Open Food Facts as a fallback. The first backend pass reserves routes for OpenAI photo analysis and bilingual menu generation. See the [backend stack](docs/backend-stack.md) for integration and Swagger details.
 
-**Read barcode** sends a camera still to `POST /api/barcodes/decode` as a multipart `photo` field. The authenticated endpoint returns the barcode digits as a JSON string, for example `"8851234567898"`. **Look up product** sends those digits to `GET /api/barcodes/{code}`.
+**Scan barcode** sends camera stills one at a time to `POST /api/barcodes/decode` as multipart `photo` fields. Once the endpoint returns barcode digits such as `"8851234567898"`, the camera stops and the frontend sends those digits to `GET /api/barcodes/{code}`.
 
 ## Run the backend
 

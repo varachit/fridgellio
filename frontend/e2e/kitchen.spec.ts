@@ -566,7 +566,7 @@ test("equipment cards retain earlier names and recover from a failed save", asyn
     { id: expect.any(String), name: "Oven" },
   ]);
 });
-test("camera barcode reading fills the code before explicit lookup", async ({
+test("camera retries unreadable frames and automatically looks up a barcode once", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -593,7 +593,11 @@ test("camera barcode reading fills the code before explicit lookup", async ({
   const digits = "012345678905";
   let reads = 0;
   let lookups = 0;
-  await page.route("**/api/barcodes/decode", (route) => {
+  let releaseFirstRead!: () => void;
+  const firstRead = new Promise<void>((resolve) => {
+    releaseFirstRead = resolve;
+  });
+  await page.route("**/api/barcodes/decode", async (route) => {
     const request = route.request();
     expect(request.method()).toBe("POST");
     expect(request.headers()["content-type"]).toContain("multipart/form-data");
@@ -601,7 +605,12 @@ test("camera barcode reading fills the code before explicit lookup", async ({
       'name="photo"; filename="barcode.jpg"',
     );
     reads += 1;
-    if (reads === 1)
+    expect(lookups).toBe(0);
+    if (reads === 1) {
+      await firstRead;
+      return route.fulfill({ json: digits }).catch(() => {});
+    }
+    if (reads === 2)
       return route.fulfill({
         status: 404,
         json: { code: "barcode_not_found" },
@@ -624,27 +633,30 @@ test("camera barcode reading fills the code before explicit lookup", async ({
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Barcode", exact: true }).click();
   await dialog.getByRole("button", { name: "Scan barcode" }).click();
-  const read = dialog.getByRole("button", { name: "Read barcode" });
-  await expect(read).toBeEnabled();
-  expect(reads).toBe(0);
-
-  await read.click();
-  await expect(dialog.getByRole("alert")).toContainText("No barcode found");
-  await read.click();
-  await expect(dialog.getByLabel("Barcode digits")).toHaveValue(digits);
-  await expect(dialog.getByRole("button", { name: "Stop camera" })).toHaveCount(
-    0,
+  await expect.poll(() => reads).toBe(1);
+  const cancelled = page.waitForEvent("requestfailed", (request) =>
+    request.url().endsWith("/api/barcodes/decode"),
   );
-  expect(reads).toBe(2);
-  expect(lookups).toBe(0);
+  await dialog.getByRole("button", { name: "Stop camera" }).click();
+  await cancelled;
+  releaseFirstRead();
+  await expect(dialog.getByLabel("Barcode digits")).toHaveValue("");
 
-  await dialog.getByRole("button", { name: "Look up product" }).click();
+  await dialog.getByRole("button", { name: "Scan barcode" }).click();
   await expect(dialog.getByLabel("Item name", { exact: true })).toHaveValue(
     "Rice",
   );
+  await expect(dialog.getByLabel("Quantity")).toHaveValue("500");
+  await expect(
+    dialog.getByRole("combobox", { name: "Unit", exact: true }),
+  ).toHaveValue("g");
   await expect(
     dialog.getByRole("link", { name: "Product source" }),
   ).toHaveAttribute("href", "https://example.com/rice");
+  await expect(dialog.getByRole("button", { name: "Stop camera" })).toHaveCount(
+    0,
+  );
+  expect(reads).toBe(3);
   expect(lookups).toBe(1);
 });
 
@@ -685,12 +697,12 @@ test("barcode review, availability errors, edit and removal", async ({
   await expect(dialog.getByLabel("Item name", { exact: true })).toHaveValue(
     "Rice",
   );
-  await expect(dialog.getByLabel("Quantity")).toHaveValue("");
+  await expect(dialog.getByLabel("Quantity")).toHaveValue("500");
+  await expect(
+    dialog.getByRole("combobox", { name: "Unit", exact: true }),
+  ).toHaveValue("g");
   await expect(dialog.getByText(/Example · 500 g/)).toBeVisible();
   await dialog.getByLabel("Quantity").fill("250");
-  await dialog
-    .getByRole("combobox", { name: "Unit", exact: true })
-    .selectOption("g");
   await dialog.getByLabel("Storage location").selectOption("pantry");
   await dialog.getByRole("button", { name: "Save entry" }).click();
   await go(page, "Meal ideas");
