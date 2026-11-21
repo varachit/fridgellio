@@ -3,7 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, File, Header, Path, Query, Request, Response, UploadFile
-from sqlalchemy import or_, select, update
+from sqlalchemy import case, or_, select, update
 from starlette.concurrency import run_in_threadpool
 
 from .auth import router as auth_router
@@ -236,19 +236,29 @@ async def record_event(
         raise ApiError(404, "stock_not_found", "The stock entry was not found.")
     if not count_is_valid(entry.unit, body.quantity):
         raise ApiError(422, "invalid_count", "Quantity must be a whole number for each.")
-    remaining = await session.scalar(
-        update(StockEntry)
-        .where(
-            StockEntry.id == entry.id,
-            StockEntry.household_id == member.household_id,
-            StockEntry.quantity >= body.quantity,
+    remaining = (
+        await session.execute(
+            update(StockEntry)
+            .where(
+                StockEntry.id == entry.id,
+                StockEntry.household_id == member.household_id,
+                StockEntry.quantity >= body.quantity,
+            )
+            .values(
+                quantity=StockEntry.quantity - body.quantity,
+                price=case(
+                    (StockEntry.price.is_(None), None),
+                    else_=StockEntry.price
+                    * (StockEntry.quantity - body.quantity)
+                    / StockEntry.quantity,
+                ),
+            )
+            .returning(StockEntry.quantity, StockEntry.price)
         )
-        .values(quantity=StockEntry.quantity - body.quantity)
-        .returning(StockEntry.quantity)
-    )
+    ).one_or_none()
     if remaining is None:
         raise ApiError(409, "insufficient_stock", "The deduction exceeds available stock.")
-    entry.quantity = remaining
+    entry.quantity, entry.price = remaining
     event = InventoryEvent(
         stock_id=entry.id,
         actor_account_id=member.account_id,

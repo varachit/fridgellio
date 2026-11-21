@@ -27,7 +27,7 @@ Use the app in English or Thai. After joining a household, change language in **
 | `assets/brand/` | Lucide-derived SVG logo variants and usage guidance |
 | `frontend/experimental/` | Standalone Three.js illustration and Framer Motion UI preview, with exported GLB models |
 
-FastAPI stores shared inventory, cooking equipment, and each member's private settings in PostgreSQL. Grocery photos are analyzed with OpenAI to produce editable bilingual item suggestions. Barcode lookup checks verified corrections by exact barcode, then uses OpenAI web search when configured, with Open Food Facts as a fallback. OpenAI also generates up to five bilingual recipe recommendations when configured. See the [backend stack](docs/backend-stack.md) for integration and Swagger details.
+FastAPI stores shared inventory, optional grocery prices in Thai baht, cooking equipment, and each member's private settings in PostgreSQL. Recipe recommendations use saved prices to show proportional cost estimates with coverage labels. Grocery photos are analyzed with OpenAI to produce editable bilingual item suggestions. Barcode lookup checks verified corrections by exact barcode, then uses OpenAI web search when configured, with Open Food Facts as a fallback. OpenAI also generates up to five bilingual recipe recommendations when configured. See the [backend stack](docs/backend-stack.md) for integration and Swagger details.
 
 **Scan barcode** sends camera stills one at a time to `POST /api/barcodes/decode` as multipart `photo` fields. Once the endpoint returns barcode digits such as `"8851234567898"`, the camera stops and the frontend sends those digits to `GET /api/barcodes/{code}`.
 

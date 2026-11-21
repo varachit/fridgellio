@@ -119,6 +119,7 @@ def stock_view(entry: StockEntry, today: date) -> StockView:
         name_en=entry.name_en,
         name_th=entry.name_th,
         quantity=entry.quantity.normalize(),
+        price=entry.price,
         unit=entry.unit,
         location=entry.location,
         expiry_date=entry.expiry_date,

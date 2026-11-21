@@ -13,6 +13,7 @@
 - [x] Decode numeric barcodes from uploaded camera stills.
 - [x] Generate up to five pantry-only recipes with per-request preferences and compatible stock totals.
 - [x] Connect grocery photo analysis to OpenAI with typed bilingual suggestions.
+- [x] Track optional grocery prices and estimate proportional recipe costs.
 - [x] Keep a typed menu-generation placeholder that returns `501`.
 
 ## API contract

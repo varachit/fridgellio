@@ -1030,6 +1030,7 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
     dialog.getByLabel("Thai name (optional)", { exact: true }),
   ).toHaveValue(eggs.th);
   await expect(dialog.getByLabel("Quantity")).toHaveValue("6");
+  await dialog.getByLabel("Price paid (optional, THB)").fill("30.00");
   expect(analyses).toBe(1);
   await expect(dialog.getByLabel("Expiry date")).toHaveValue("");
   await dialog
@@ -1151,6 +1152,8 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
             equipment: ["Microwave"],
             minutes: 10,
             difficulty: "easy",
+            estimated_price: "10.00",
+            price_coverage: "full",
           },
         ],
       },
@@ -1189,6 +1192,9 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
   await expect(
     page.getByRole("region", { name: "Recommended recipes" }),
   ).toContainText("3 servings");
+  await expect(
+    page.getByRole("region", { name: "Recommended recipes" }),
+  ).toContainText("Estimated cost ฿10.00");
   await expect(
     page
       .getByRole("region", { name: "Recommended recipes" })
