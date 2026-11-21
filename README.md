@@ -1,6 +1,44 @@
 # Fridgellio
 
-Fridgellio helps households track pantry items and groceries together and decide what to cook. In **Meal ideas**, members can generate up to five recipes from their pantry and selected equipment.
+**What can I cook tonight with what I already have?** Fridgellio helps home cooks discover meals they want to make, use the ingredients that need attention first, and track what they actually cook or discard. We built Fridgellio from scratch at the Regional Codex Hackathon Thailand with Codex as our development assistant.
+
+![Fridgellio Meal ideas screen with serving size, cooking time, dietary preferences, and kitchen settings](docs/screenshots/meal-planner-desktop.png)
+
+*Meal ideas lets you set preferences for a meal using what you have in the pantry.*
+
+## Judging criteria
+
+### Problem & Solution Fit
+
+Opening a fridge full of food and still feeling unsure what to cook is a familiar problem across ages, households, and cooking skill levels. You might be tired of repeating the same dishes, unsure how to combine what you have, or worried that something will spoil before you get to it. Fridgellio uses your pantry, available time, equipment, and preferences to help you choose a meal you can make.
+
+### Build Quality
+
+The workflow is designed for beginners and experienced cooks. Add groceries by hand, from a photo, or by scanning a barcode, check **Use soon**, set your preferences, and review ingredient quantities and step-by-step cooking instructions. The app supports English and Thai. The backend checks stock quantities, units, and equipment before presenting generated recipes. In the demo, add an item, submit a meal request, then record a quantity used and verify the updated balance in **History**. The backend test suite covers expiry, unit compatibility, and household isolation.
+
+![Barcode review screen prefilled with jasmine rice, 500 g, and a product source link](docs/screenshots/barcode-automatic-review.png)
+
+*Review the product and confirm the quantity before adding it to the pantry.*
+
+### Insight & Originality
+
+**A recipe recommendation is an inventory decision.** Two recipes might match the same ingredients, yet one uses all 150 g of mushrooms due today while the other uses only 20 g. The proposed MVP ranks recipes using the quantity of urgent stock they can use, explains the ranking, and lets the cook explore small purchases within a budget. It distinguishes the cost of the portion used in the recipe from the cash needed to buy a full package. Recording actual use and discard then shows what happened after the recommendation.
+
+### Real-World Value
+
+Fridgellio helps people who are bored with their usual meals, people who have food at home and cannot decide what to make, and beginners who benefit from quantities and ordered cooking steps. A shared pantry and history help households see what is left and how much they use or throw away.
+
+Our evaluation plan compares recommendations with basic ingredient matching on the same pantry data. We will measure how often people cook a suggested dish, how many grams of priority stock they use, and whether a small shopping option helps more people choose a recipe. Measuring actual waste reduction requires tracking discarded quantities against each household’s baseline month. We have yet to measure that outcome.
+
+### Alignment with Build Direction
+
+- **Autonomous & Adaptive AI.** When a cook points the camera at a barcode, Fridgellio reads it automatically and looks up the product. The cook reviews the details and confirms the quantity before adding it to the pantry. When the cook requests meal ideas, Fridgellio generates and checks recipes automatically. Each request uses the latest pantry quantities, use-by dates, and meal preferences. The cook confirms actual use or discard, and the resulting stock changes inform the next request. The planned ranking will use cooking and discard history to improve future suggestions.
+- **AI-Native Products & Operations.** OpenAI adapts recipe suggestions to the live pantry, servings, time, equipment, and preferences for a particular meal. Home cooks can change those constraints and get a new set of ideas. The backend checks each generated recipe against available quantities and equipment before showing it.
+- **Deep Domain AI.** A useful recipe depends on the form, quantity, and urgency of an ingredient. Canned tuna can go into a cooked rice bowl. A preparation that requires raw tuna needs a different ingredient. The project already checks stock and cooking constraints and includes ingredient-form guidance in its recipe prompts. The planned ranking extends that reasoning to use-by dates, available quantities, and what the household actually uses.
+
+### Use of Codex
+
+We used Codex across the project, from setting up the repository and building the FastAPI backend and Next.js frontend to implementing the pantry, barcode reading and product lookup, grocery photo analysis, and recipe recommendations and illustrations. Codex also helped write and run tests for barcode handling, recipe limits, bilingual display, and per-request preferences.
 
 ## Who it serves
 
@@ -14,6 +52,46 @@ The first release is designed for household members who shop and cook. They shar
 4. Record what you used directly in inventory after cooking. Open **History** or an item's **Entry history** to see who added, used, or discarded stock and in what quantity. Open **Household** to see who shares your pantry. The owner can create and remove unused invitation codes such as `K7RM-3X9D`.
 
 Use the app in English or Thai. After joining a household, change language in **Settings → Language**; your profile remains in the top bar. Inventory uses a plain heading with a Three.js paper grocery bag that hops gently on hover or tap. Fridgellio saves both language versions of AI-generated grocery names and menus so switching languages can display the saved translation.
+
+## Proposed MVP experience
+
+1. **Stock the pantry.** Record each item’s name, quantity, unit, use-by date, and purchase price when available. **Use soon** brings the most urgent items to the top.
+2. **Get three recipe recommendations.** The app uses available stock, servings, cooking time, equipment, and foods to avoid. Each card explains why the recipe was recommended, what it uses, the cost per serving, and whether anything needs to be purchased.
+3. **Ask for other recipes.** Try a different meal from the same pantry, or set a shopping budget and a maximum number of items to buy. Compare recipes by the fewest additional items, the lowest checkout cost, or the best match for your preferences within budget.
+4. **Record what happened.** Mark a recipe as cooked or an ingredient as discarded, then confirm the actual quantity before stock is updated. Link the recommendation to what the household cooked, used, or discarded, with an option to undo a mistaken entry.
+
+### Example recipe card
+
+**Spicy kimchi and mushroom noodles · 2 servings**
+
+Uses all **150 g of mushrooms due today** and matches your preference for spicy noodles. Buy **one bag of kimchi for ฿35**.
+
+| Cost | Calculation |
+| --- | --- |
+| **฿26 per serving** | Mushrooms ฿22.50 for 150 g of a ฿45, 300 g purchase, plus ฿12 for noodles and ฿17.50 for 100 g of kimchi from a ฿35, 200 g bag. The ฿52 recipe serves two. |
+| **฿35 to spend** | The checkout cost of one full bag of kimchi. |
+
+If a price needed for a total is missing, show **Price unknown** for that total.
+
+## Implementation status
+
+| Area | Status |
+| --- | --- |
+| Shared pantry and expiry tracking | Add groceries manually, from a photo, or by scanning a barcode. **Use soon** sorts groceries by expiry, and **History** shows quantities used or discarded. |
+| Recipe recommendations and costs | Generate up to five bilingual recipes from eligible pantry stock and meal preferences. Recipes include AI-generated illustrations and use saved grocery prices for proportional cost estimates. |
+| Food-waste ranking | The proposed MVP ranks up to three recipes and explains which ingredients nearing their use-by dates each recipe would use. |
+| Budgeted shopping and outcomes | Planned work includes package-based shopping budgets, per-serving costs for recipes with planned purchases, linking recipes to actual use or waste, and undoing mistaken records. |
+
+After the MVP, the roadmap includes monthly waste reports, rewards based on improvements against a household’s own baseline, receipt and whole-fridge photo scanning, and reminders outside the app for ingredients that should be used soon.
+
+## Hackathon submission and declarations
+
+- **Repository** [Fridgellio on GitHub](https://github.com/varachit/fridgellio)
+- **Project write-up** This README covers the problem, solution, build directions, judging criteria, and use of Codex.
+- **Demo** The setup steps below run the project locally. The submission form still needs a live demo or prototype link.
+- **Built from scratch** The team created the Fridgellio application at the Regional Codex Hackathon Thailand with Codex’s help. No existing personal application served as the starting point. The application uses open-source dependencies and assets, including FastAPI, Next.js, ZXing-C++, and Lucide-derived icons.
+
+Submit once per team via Google Form by **5:00 p.m. ICT on November 21, 2026**, using a new public repository. The demo and pitch have **6 minutes**, followed by **2 minutes** of Q&A in the first round or **4 minutes** in the final.
 
 ## Monorepo structure
 
@@ -82,9 +160,7 @@ pnpm dev
 
 Open `http://localhost:3000`, create an account, and create a household or join with an invitation code. The Next.js server connects to FastAPI at `http://127.0.0.1:8000` by default. See the [frontend guide](frontend/README.md) for configuration and browser tests.
 
-## How to judge the first release
-
-Household members should be able to add groceries to the same pantry and preview meal requests using shared stock and equipment and their own **Foods to avoid** settings. After one member records what they used, the other members should see the updated quantities.
+## Project documentation
 
 See [Product requirements](docs/requirements.md) for detailed behavior and acceptance criteria.
 
