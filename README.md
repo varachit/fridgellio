@@ -48,6 +48,8 @@ See [Authentication operations](docs/backend-stack.md#authentication-operations)
 
 From `backend/`, run `uv run ruff check .`, `uv run ruff format --check .`, and `uv run pytest`. Set `FRIDGELLIO_TEST_DATABASE_URL` to also run the PostgreSQL tests. The test role needs permission to create a temporary schema.
 
+For a Vercel API deployment, set the project's **Root Directory** to `backend` and **Framework Preset** to **FastAPI**. Vercel reads the application entrypoint from [backend/pyproject.toml](backend/pyproject.toml). After deployment, `GET /health/live` should return `{"status":"ok"}`.
+
 ### Try the OpenAI Responses API
 
 Set `OPENAI_API_KEY` in the repository root `.env` using a key from your OpenAI project. Restart the backend after changing the key. [OpenAI API keys](https://platform.openai.com/api-keys)
