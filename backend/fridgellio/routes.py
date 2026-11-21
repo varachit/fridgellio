@@ -2,11 +2,12 @@ from datetime import UTC, date, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Header, Path, Query, Request, Response
+from fastapi import APIRouter, File, Header, Path, Query, Request, Response, UploadFile
 from sqlalchemy import or_, select, update
+from starlette.concurrency import run_in_threadpool
 
 from .auth import router as auth_router
-from .barcodes import lookup_barcode
+from .barcodes import BARCODE_PATTERN, decode_barcode, lookup_barcode
 from .data import CurrentAccount, Member, Session, owned_stock, stock_view
 from .errors import ApiError, responses
 from .households import router as households_router
@@ -312,9 +313,30 @@ async def delete_equipment(equipment_id: UUID, member: Member, session: Session)
     return Response(status_code=204)
 
 
+@api.post(
+    "/barcodes/decode",
+    tags=["Grocery intake"],
+    summary="Decode a barcode from a camera photo",
+    max_body_size=8 * 1024 * 1024,
+    form_limits={"max_files": 1, "max_fields": 0},
+    responses={
+        **responses(400, 404),
+        413: {"description": "The multipart request exceeds 8 MiB."},
+        200: {"content": {"application/json": {"example": "00123456"}}},
+    },
+)
+async def decode_barcode_photo(
+    photo: Annotated[UploadFile, File(description="A JPEG, PNG, or WebP camera image")],
+    account: CurrentAccount,
+    session: Session,
+) -> str:
+    await session.rollback()
+    return await run_in_threadpool(decode_barcode, photo.file)
+
+
 @api.get("/barcodes/{code}", tags=["Grocery intake"], responses=responses(404, 502, 504))
 async def barcode(
-    code: Annotated[str, Path(pattern=r"^[0-9]{4,24}$", examples=["0881234567890"])],
+    code: Annotated[str, Path(pattern=BARCODE_PATTERN, examples=["0881234567890"])],
     request: Request,
     account: CurrentAccount,
     session: Session,
