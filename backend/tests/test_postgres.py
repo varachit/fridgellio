@@ -352,6 +352,34 @@ def test_concurrent_deduction_and_retry(client, household_accounts):
     assert client.get("/api/inventory-history", headers=other).json() == []
 
 
+def test_statistics_separate_usage_from_expiry_loss(client, household_accounts):
+    owner, _, _ = household_accounts
+    assert client.post("/api/household", headers=owner).status_code == 201
+    used = add_stock(client, owner, "Rice", "500", "2026-12-01", price="80.00")
+    expired = add_stock(client, owner, "Milk", "1", "2026-10-31", price="45.00")
+    ordinary = add_stock(client, owner, "Flour", "200", "2026-12-01")
+    for entry, kind, quantity in (
+        (used, "used", "125"),
+        (expired, "discarded", "1"),
+        (ordinary, "discarded", "50"),
+    ):
+        response = client.post(
+            f"/api/inventory/{entry}/events?today=2026-11-21",
+            headers=owner,
+            json={"kind": kind, "quantity": quantity},
+        )
+        assert response.is_success, response.json()
+    history = client.get("/api/inventory-history", headers=owner).json()
+    assert any(event["kind"] == "expired" for event in history)
+    statistics = client.get("/api/statistics?today=2026-11-21&months=1", headers=owner).json()[
+        "months"
+    ][0]
+    assert statistics["used"] == {"each": "0", "g": "125", "ml": "0"}
+    assert statistics["expired"] == {"each": "0", "g": "1", "ml": "0"}
+    assert statistics["used_cost"] == "20.00"
+    assert statistics["expired_cost"] == "45.00"
+
+
 def test_profile_updates_only_the_signed_in_account(client, household_accounts):
     owner, member, _ = household_accounts
     path = "/api/preferences/profile"
@@ -735,7 +763,7 @@ def test_cooked_recipe_allocates_exact_stock_once_or_rolls_back(client, househol
     spinach = {"en": "Spinach", "th": "ผักโขม"}
     milk = {"en": "Milk", "th": "นม"}
     eggs = {"en": "Eggs", "th": "ไข่"}
-    due = add_stock(client, cook, spinach["th"], "100", today)
+    due = add_stock(client, cook, spinach["th"], "100", today, price="12.50")
     later = add_stock(
         client,
         cook,
@@ -745,6 +773,7 @@ def test_cooked_recipe_allocates_exact_stock_once_or_rolls_back(client, househol
         unit="kg",
         name_en="Spinach",
         name_th=spinach["th"],
+        price="20.01",
     )
     undated = add_stock(client, cook, "Spinach", "80")
     expired = add_stock(client, cook, "Spinach", "50", "2026-06-09")
@@ -798,14 +827,17 @@ def test_cooked_recipe_allocates_exact_stock_once_or_rolls_back(client, househol
         for event in client.get("/api/inventory-history", headers=cook).json()
         if event["kind"] == "used"
     ]
-    assert sorted((e["stock_id"], e["quantity"], e["unit"]) for e in used) == sorted(
+    assert sorted((e["stock_id"], e["quantity"], e["unit"], e["cost"]) for e in used) == sorted(
         [
-            (due, "100", "g"),
-            (later, "0.075", "kg"),
-            (milk_id, "0.1255", "l"),
-            (egg_id, "2", "each"),
+            (due, "100", "g", "12.50"),
+            (later, "0.075", "kg", "10.00"),
+            (milk_id, "0.1255", "l", None),
+            (egg_id, "2", "each", None),
         ]
     )
+    month = client.get("/api/statistics?months=1", headers=cook).json()["months"][0]
+    assert month["used"] == {"g": "175", "ml": "125.5", "each": "2"}
+    assert month["used_cost"] == "22.50"
     assert (
         client.get(f"/api/inventory/{outsider_eggs}/events", headers=outsider).json()[0]["quantity"]
         == "12"

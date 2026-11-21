@@ -89,14 +89,18 @@ def deduct_ingredient(lot: StockEntry, used: Decimal, account_id: UUID) -> Inven
         quantity = used
     else:
         lot.quantity -= quantity
+    cost = None
     if lot.price is not None:
-        lot.price = money(lot.price * remaining / original)
+        remaining_price = money(lot.price * remaining / original)
+        cost = lot.price - remaining_price
+        lot.price = remaining_price
     return InventoryEvent(
         stock_id=lot.id,
         actor_account_id=account_id,
         item_name=lot.name,
         kind="used",
         quantity=quantity,
+        cost=cost,
         unit=lot.unit,
     )
 

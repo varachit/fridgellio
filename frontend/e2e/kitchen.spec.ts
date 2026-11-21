@@ -213,6 +213,54 @@ test("inventory expiry notifications review past-date entries without changing s
   ).toBe(true);
 });
 
+test("statistics compares used groceries with expiry loss", async ({
+  page,
+}, info) => {
+  await register(page, "statistics" + suffix());
+  await page.getByRole("button", { name: "Create household" }).click();
+  await page.route("**/api/statistics?*", (route) =>
+    route.fulfill({
+      json: {
+        months: [
+          {
+            month: "2026-10",
+            used: { each: "0", g: "500", ml: "0" },
+            expired: { each: "0", g: "100", ml: "250" },
+            used_cost: "120.00",
+            expired_cost: "35.50",
+          },
+          {
+            month: "2026-11",
+            used: { each: "6", g: "250", ml: "0" },
+            expired: { each: "2", g: "0", ml: "0" },
+            used_cost: "85.00",
+            expired_cost: "18.00",
+          },
+        ],
+      },
+    }),
+  );
+  await go(page, "Statistics");
+  await expect(
+    page.getByRole("heading", { name: "Statistics", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Actually used" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Lost after expiry" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Monthly comparison" }),
+  ).toBeVisible();
+  await expect(page.getByText("Total cost · ฿205.00")).toBeVisible();
+  await expect(page.getByText("Total loss · ฿53.50")).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: /500 g used; 100 g lost/ }),
+  ).toBeVisible();
+  await page.screenshot({ path: info.outputPath("grocery-statistics.png") });
+});
+
 test("workspace navigation stays on the left and opens as a drawer on mobile", async ({
   page,
 }, info) => {

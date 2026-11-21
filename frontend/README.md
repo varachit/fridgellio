@@ -19,13 +19,16 @@ On **Your household**, the circular profile button in the top-right corner opens
 
 ## Server configuration
 
-| Variable | Purpose |
-| --- | --- |
-| `NEXTAUTH_SECRET` | Secret used to encrypt the NextAuth cookie. Use a persistent value shared by the Next.js instances in one deployment. Rotating it requires members to sign in again. |
-| `NEXTAUTH_URL` | Public origin for the web app, such as `http://localhost:3000` in development. Set the HTTPS origin in production so NextAuth uses secure cookies and the correct callback URLs. |
-| `FRIDGELLIO_API_URL` | FastAPI origin reachable by the Next.js server. Defaults to `http://127.0.0.1:8000`. |
+| Variable                      | Purpose                                                                                                                                                                          |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXTAUTH_SECRET`             | Secret used to encrypt the NextAuth cookie. Use a persistent value shared by the Next.js instances in one deployment. Rotating it requires members to sign in again.             |
+| `NEXTAUTH_URL`                | Public origin for the web app, such as `http://localhost:3000` in development. Set the HTTPS origin in production so NextAuth uses secure cookies and the correct callback URLs. |
+| `FRIDGELLIO_API_URL`          | FastAPI origin reachable by the Next.js server. Defaults to `http://127.0.0.1:8000`.                                                                                             |
+| `NEXT_PUBLIC_STATISTICS_MOCK` | Set to `true` only for local demos to show six months of sample used and expired grocery data. Defaults to real household statistics.                                            |
 
 Set these values on the Next.js server or in `frontend/.env.local`. Existing configurations can use `FRIDGELLIO_WEB_ORIGIN` as a fallback for `NEXTAUTH_URL`.
+
+To preview the Statistics tab without adding household history, set `NEXT_PUBLIC_STATISTICS_MOCK=true` and restart the frontend development server. Mock mode is explicit and affects only the Statistics tab.
 
 ```sh
 pnpm build
@@ -50,6 +53,7 @@ TanStack React Query manages household, preference, inventory, history, equipmen
 - Inventory shows active entries separately for each purchase, including an optional total price in Thai baht. Search by any saved name, filter by storage location, and select an entry to edit, remove, use, or discard it. Using or discarding stock reduces its remaining price proportionally. Shared stock refreshes after writes, on window focus, and every 30 seconds while visible.
 - **Use soon** groups entries due today through three days ahead and lists past-date groceries separately. The app sends the member’s local calendar date to FastAPI.
 - **History** shows who added, used, or discarded stock and retains those events after an entry is depleted or removed. A retry of the same deduction in the open form reuses its request key.
+- **Statistics** compares actual use with groceries discarded after expiry for the latest six months. It keeps item counts, weight, and volume separate, shows total known cost and loss in Thai baht, and excludes ordinary discards from expiry loss. Cost totals include only events recorded from priced stock.
 - Take a grocery photo for OpenAI-powered bilingual item suggestions, or scan a barcode using the camera or type the digits. Review localized names and enter the actual quantity before saving. The browser loads the scanner when the camera is opened.
 - Meal ideas starts with two servings. Expand the diet, cuisine, or kitchen sections to customize the request. Generate submits to `POST /api/menus/recommendations` and shows up to five recommendations, with a pantry preview when OpenAI is unconfigured. Recommendations show an estimated Thai-baht cost when pantry prices are available and identify partial estimates. **Saved menus** displays any validated menus stored for the account.
 
