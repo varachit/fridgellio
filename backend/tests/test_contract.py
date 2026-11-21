@@ -20,6 +20,12 @@ def test_schema_and_auth():
             "multipart/form-data"
             in spec["paths"]["/api/photos/analyze"]["post"]["requestBody"]["content"]
         )
+        decode = spec["paths"]["/api/barcodes/decode"]["post"]
+        assert decode["security"] == [{"AccountSession": []}]
+        assert "multipart/form-data" in decode["requestBody"]["content"]
+        assert (
+            decode["responses"]["200"]["content"]["application/json"]["schema"]["type"] == "string"
+        )
         assert client.get("/docs").status_code == 200
         assert client.get("/health/live").json() == {"status": "ok"}
         assert client.get("/health/ready").status_code == 503

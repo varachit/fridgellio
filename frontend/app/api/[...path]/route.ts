@@ -41,7 +41,8 @@ async function forward(request: NextRequest, context: Context) {
     };
     if (route === "menus" || route === "photos/analyze")
       init.signal = AbortSignal.timeout(90_000);
-    if (path[0] === "barcodes") init.signal = AbortSignal.timeout(35_000);
+    if (request.method === "GET" && path[0] === "barcodes")
+      init.signal = AbortSignal.timeout(35_000);
     if (request.body)
       Object.assign(init, { body: request.body, duplex: "half" });
     const upstream = await backendFetch(route + request.nextUrl.search, init);

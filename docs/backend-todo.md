@@ -10,6 +10,7 @@
 - [x] Implement manual inventory entry, editing, removal, search, expiry filters, and transactional usage or discard recording.
 - [x] Implement shared equipment and private English or Thai language and Foods to avoid settings.
 - [x] Implement OpenAI web search for barcodes with Open Food Facts as a fallback.
+- [x] Decode numeric barcodes from uploaded camera stills.
 - [x] Add typed photo-analysis and menu-generation placeholders that return `501`.
 
 ## API contract
@@ -17,9 +18,10 @@
 | Route | Behavior |
 | --- | --- |
 | `GET /health/live`, `GET /health/ready` | Check process and database health respectively. |
-| `POST /api/auth/register`, `POST /api/auth/login` | Accept JSON with `username` and `password`. Registration also accepts optional `first_name` and `last_name` (1–200 characters each after trimming) and an initial `language` of `en` (default) or `th`. Return the account, a new bearer token, and its expiry seven days after issue. Return `409` for an unavailable username on registration, `401` for invalid credentials on login, or `429` when rate limited. |
+| `POST /api/auth/register`, `POST /api/auth/login` | Accept JSON with `username` and `password`. Registration also requires `first_name` and `last_name` (1–200 characters each after trimming) and accepts an initial `language` of `en` (default) or `th`. Return the account, a new bearer token, and its expiry seven days after issue. Return `409` for an unavailable username on registration, `401` for invalid credentials on login, or `429` when rate limited. |
 | `GET /api/auth/me`, `POST /api/auth/logout` | Read the signed-in account or revoke the current bearer token. |
 | `GET /api/preferences`, `PATCH /api/preferences` | Read or update the account's language. |
+| `GET /api/preferences/profile`, `PATCH /api/preferences/profile` | Read or update the signed-in account's names. A patch can update either name when the resulting profile has both names. Return `422` if a name is blank or null, or if the updated profile would still lack a name. |
 | `GET /api/preferences/foods-to-avoid`, `POST /api/preferences/foods-to-avoid`, `DELETE /api/preferences/foods-to-avoid/{food_id}` | Manage the signed-in account's private list. |
 | `GET /api/household`, `POST /api/household` | Read the current membership or create a household. |
 | `POST /api/household/invitations`, `POST /api/household/join` | Issue and accept a single-use invitation. |
@@ -31,6 +33,7 @@
 | `GET /api/equipment`, `POST /api/equipment` | List or add equipment. |
 | `PATCH /api/equipment/{equipment_id}`, `DELETE /api/equipment/{equipment_id}` | Edit or remove owned equipment. |
 | `GET /api/barcodes/{code}` | Look up a product without writing inventory. Return code, name, and brands, with optional localized names and numeric `Quantity` and `Unit`. Include `X-Barcode-Source` for web results. Use an optional `language` override or the saved preference. |
+| `POST /api/barcodes/decode` | Accept one image in the multipart `photo` field and return the decoded digits as a JSON string. |
 | `POST /api/photos/analyze`, `POST /api/menus` | Reserve authenticated routes for future AI work. Return `501` with a machine-readable error. |
 
 ## Verification

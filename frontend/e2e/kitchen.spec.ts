@@ -3,20 +3,18 @@ import { expect, test, type Page } from "@playwright/test";
 import { localDay } from "../lib/pantry";
 
 const suffix = () => crypto.randomUUID().slice(0, 8);
-const password = "pantry workflow test password";
+const password = "eight888";
 async function register(
   page: Page,
   name: string,
-  profile?: { first: string; last: string },
+  profile = { first: "Pantry", last: "Tester" },
 ) {
   if (page.url() === "about:blank") await page.goto("/");
   await page
     .getByRole("button", { name: "Create an account", exact: true })
     .click();
-  if (profile) {
-    await page.getByLabel("First name (optional)").fill(profile.first);
-    await page.getByLabel("Last name (optional)").fill(profile.last);
-  }
+  await page.getByLabel("First name", { exact: true }).fill(profile.first);
+  await page.getByLabel("Last name", { exact: true }).fill(profile.last);
   await page.getByLabel("Username", { exact: true }).fill(name);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page
@@ -70,6 +68,19 @@ test("NextAuth revokes one backend session and isolates each member's query cach
     .getByRole("button", { name: "Create household", exact: true })
     .click();
   await go(page, "Settings");
+  const usernameField = page.getByLabel("Username", { exact: true });
+  await expect(usernameField).toHaveValue(username);
+  await expect(usernameField).toHaveAttribute("readonly", "");
+  await expect(page.getByLabel("First name", { exact: true })).toHaveValue(
+    "มาลี",
+  );
+  await expect(page.getByLabel("Last name", { exact: true })).toHaveValue(
+    "Santos",
+  );
+  await page.getByLabel("Last name", { exact: true }).fill("  Reyes  ");
+  await page.getByRole("button", { name: "Save profile" }).click();
+  await expect(page.getByText("Profile saved.")).toBeVisible();
+  await expect(page.getByText("มาลี Reyes", { exact: true })).toBeVisible();
   await page.getByLabel("Ingredient name").fill("Cashews");
   await page
     .getByRole("group")
@@ -102,7 +113,26 @@ test("NextAuth revokes one backend session and isolates each member's query cach
     await expect(
       second.getByRole("heading", { name: "Inventory", exact: true }),
     ).toBeVisible();
-    await expect(second.getByText("มาลี Santos", { exact: true })).toBeVisible();
+    await expect(second.getByText("มาลี Reyes", { exact: true })).toBeVisible();
+    await go(second, "Settings");
+    const firstName = second.getByLabel("First name", { exact: true });
+    const lastName = second.getByLabel("Last name", { exact: true });
+    const saveProfile = second.getByRole("button", { name: "Save profile" });
+    await expect(firstName).toHaveAttribute("required", "");
+    await expect(lastName).toHaveAttribute("required", "");
+    await expect(lastName).toHaveValue("Reyes");
+    await lastName.clear();
+    await saveProfile.click();
+    await expect(lastName).toBeFocused();
+    await lastName.fill("   ");
+    await saveProfile.click();
+    await expect(
+      second.getByText("Enter both a first name and a last name."),
+    ).toBeVisible();
+    await expect(second.getByText("มาลี Reyes", { exact: true })).toBeVisible();
+    await second.reload();
+    await expect(firstName).toHaveValue("มาลี");
+    await expect(lastName).toHaveValue("Reyes");
     expect(backendSessions("count", username)).toBe("2");
 
     await page.getByRole("button", { name: "Sign out" }).click();
@@ -117,10 +147,25 @@ test("NextAuth revokes one backend session and isolates each member's query cach
     await page.getByRole("button", { name: "สร้างบัญชี", exact: true }).click();
     await page.getByLabel("ชื่อผู้ใช้", { exact: true }).fill(username);
     await page.getByLabel("รหัสผ่าน", { exact: true }).fill(password);
-    await page.getByRole("button", { name: "สร้างบัญชี", exact: true }).click();
+    const signUpFirstName = page.getByLabel("ชื่อ", { exact: true });
+    const signUpLastName = page.getByLabel("นามสกุล", { exact: true });
+    const createAccount = page.getByRole("button", {
+      name: "สร้างบัญชี",
+      exact: true,
+    });
+    await expect(signUpFirstName).toHaveAttribute("required", "");
+    await expect(signUpLastName).toHaveAttribute("required", "");
+    await createAccount.click();
+    await expect(signUpFirstName).toBeFocused();
+    await signUpFirstName.fill("   ");
+    await signUpLastName.fill("Tester");
+    await createAccount.click();
+    await expect(page.getByText("กรอกทั้งชื่อและนามสกุล")).toBeVisible();
+    await signUpFirstName.fill("Pantry");
+    await createAccount.click();
     await expect(page.getByText("มีผู้ใช้ชื่อนี้แล้ว กรุณาเลือกชื่อใหม่")).toBeVisible();
     await page.getByLabel("ชื่อผู้ใช้", { exact: true }).fill("fresh" + suffix());
-    await page.getByRole("button", { name: "สร้างบัญชี", exact: true }).click();
+    await createAccount.click();
     await expect(
       page.getByRole("heading", { name: "ครัวเรือนของคุณ" }),
     ).toBeVisible();
@@ -160,6 +205,7 @@ test("members share inventory, record a cooked meal and retain depleted history"
   browser,
 }, info) => {
   const owner = "cook" + suffix();
+  await page.clock.install();
   await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "Welcome back." }),
@@ -168,7 +214,7 @@ test("members share inventory, record a cooked meal and retain depleted history"
     path: info.outputPath("sign-in.png"),
     fullPage: true,
   });
-  await register(page, owner);
+  await register(page, owner, { first: "Mali", last: "Santos" });
   await page
     .getByRole("button", { name: "Create household", exact: true })
     .click();
@@ -212,21 +258,88 @@ test("members share inventory, record a cooked meal and retain depleted history"
     .getByRole("button", { name: "Add", exact: true })
     .click();
   await expect(page.getByText("Peanuts", { exact: true })).toBeVisible();
+  await go(page, "Household");
+  await page.getByRole("button", { name: "Create invitation code" }).click();
+  const revokedToken = await page
+    .getByRole("textbox", { name: "Invitation code" })
+    .inputValue();
+  await page.reload();
+  const revoke = page.getByRole("button", { name: /^Remove invite/ });
+  await revoke.focus();
+  await expect(revoke).toBeFocused();
+  await revoke.press("Enter");
+  await expect(page.getByText("Invitation removed.")).toBeVisible();
+  await expect(revoke).toHaveCount(0);
   await page.getByRole("button", { name: "Create invitation code" }).click();
   const token = await page
-    .getByRole("textbox", { name: /^Invitation code/ })
+    .getByRole("textbox", { name: "Invitation code" })
     .inputValue();
+  expect(token).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+  await page.getByRole("region", { name: "Invitations" }).screenshot({
+    path: info.outputPath("household-invitation-code.png"),
+  });
+  await page.reload();
+  await expect(revoke).toBeVisible();
+  await page.screenshot({ path: info.outputPath("owner-household.png") });
+  const desktopViewport = page.viewportSize()!;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(revoke).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  await page.screenshot({
+    path: info.outputPath("mobile-owner-household.png"),
+  });
+  await page.setViewportSize(desktopViewport);
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     baseURL: "http://127.0.0.1:3310",
   });
   const member = await context.newPage();
+  await member.clock.install();
   try {
-    await register(member, "member" + suffix());
+    await register(member, "member" + suffix(), {
+      first: "Niran",
+      last: "Lee",
+    });
     await member.getByRole("button", { name: "Join", exact: true }).click();
-    await member.getByLabel("Invitation code").fill(token);
+    await member.getByLabel("Invitation code").fill(revokedToken);
     await member.getByRole("button", { name: "Join household" }).click();
+    await expect(
+      member
+        .getByRole("alert")
+        .filter({ hasText: "This invitation code is no longer available." }),
+    ).toBeVisible();
+    await member
+      .getByLabel("Invitation code")
+      .fill(token.toLowerCase().replace("-", ""));
+    await member.getByRole("button", { name: "Join household" }).click();
+    await go(member, "Household");
+    await expect(
+      member.getByRole("region", { name: "Invitations" }),
+    ).toHaveCount(0);
+    const roster = member.getByRole("main").getByRole("listitem");
+    await expect(roster.filter({ hasText: "Mali Santos" })).toContainText(
+      "Owner",
+    );
+    await expect(roster.filter({ hasText: "Niran Lee" })).toContainText("You");
+    await expect(
+      roster.filter({ hasText: "Niran Lee" }).locator(".avatar"),
+    ).toHaveText("NL");
+    await member.screenshot({
+      path: info.outputPath("mobile-household-members.png"),
+      fullPage: true,
+    });
+    await go(member, "Inventory");
+    await go(page, "Inventory");
+    await page.getByRole("button", { name: /Spinach/ }).click();
+    const ownerQuantity = dialog.locator(".detail-meta");
+    await expect(ownerQuantity).toContainText("100 g");
     await member.getByRole("button", { name: /Spinach/ }).click();
+    const activity = member.getByRole("dialog").getByRole("listitem");
+    await expect(activity.filter({ hasText: "Added 100 g" })).toContainText(
+      "Mali Santos",
+    );
     await member.getByLabel("Amount").fill("101");
     await member.getByRole("button", { name: "Save usage" }).click();
     await expect(member.getByRole("dialog").getByRole("alert")).toContainText(
@@ -247,11 +360,19 @@ test("members share inventory, record a cooked meal and retain depleted history"
     await expect(member.getByRole("dialog").getByRole("alert")).toContainText(
       "request could not be completed",
     );
+    await member.clock.fastForward(30_000);
+    await expect(
+      member.getByRole("dialog").locator(".detail-meta"),
+    ).toContainText("25 g");
     await expect(member.getByLabel("Amount")).toHaveValue("75");
     await member.getByRole("button", { name: "Save usage" }).click();
     await expect(member.getByRole("button", { name: /Spinach/ })).toContainText(
       "25 g",
     );
+    await page.bringToFront();
+    await page.clock.fastForward(30_000);
+    await expect(ownerQuantity).toContainText("25 g");
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
     await member.screenshot({
       path: info.outputPath("mobile-inventory.png"),
       fullPage: true,
@@ -294,6 +415,7 @@ test("members share inventory, record a cooked meal and retain depleted history"
   } finally {
     await context.close();
   }
+  await go(page, "Settings");
   await page.reload();
   await expect(
     equipment.getByRole("button", { name: "Skillet" }),
@@ -309,8 +431,20 @@ test("members share inventory, record a cooked meal and retain depleted history"
   await dialog.getByRole("button", { name: "Save discard" }).click();
   await expect(page.getByText("Your pantry is empty")).toBeVisible();
   await go(page, "History");
-  await expect(page.getByText("Used 75 g")).toBeVisible();
-  await expect(page.getByText("Discarded 25 g")).toBeVisible();
+  const records = page.getByRole("main").getByRole("listitem");
+  await expect(records.filter({ hasText: "Added 100 g" })).toContainText(
+    "Mali Santos",
+  );
+  await expect(records.filter({ hasText: "Used 75 g" })).toContainText(
+    "Niran Lee",
+  );
+  await expect(records.filter({ hasText: "Discarded 25 g" })).toContainText(
+    "Mali Santos",
+  );
+  await page.screenshot({
+    path: info.outputPath("inventory-history.png"),
+    fullPage: true,
+  });
   await go(page, "Meal ideas");
   await expect(page.getByText(/Add in-date or undated/)).toBeVisible();
   await page.getByRole("button", { name: "Sign out" }).click();
