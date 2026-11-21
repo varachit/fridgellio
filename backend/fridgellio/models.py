@@ -135,9 +135,12 @@ class InventoryEvent(Base):
     __tablename__ = "inventory_events"
     __table_args__ = (
         CheckConstraint("quantity > 0 AND quantity <> 'NaN'::numeric", name="ck_event_quantity"),
-        CheckConstraint("kind IN ('added', 'used', 'discarded')", name="ck_event_kind"),
+        CheckConstraint("kind IN ('added', 'used', 'discarded', 'expired')", name="ck_event_kind"),
         CheckConstraint("unit IN ('each', 'g', 'kg', 'ml', 'l')", name="ck_event_unit"),
         CheckConstraint("unit <> 'each' OR quantity = trunc(quantity)", name="ck_event_count"),
+        CheckConstraint(
+            "cost IS NULL OR (cost >= 0 AND cost <> 'NaN'::numeric)", name="ck_event_cost"
+        ),
         UniqueConstraint(
             "stock_id", "actor_account_id", "idempotency_key", name="uq_events_stock_request"
         ),
@@ -150,6 +153,7 @@ class InventoryEvent(Base):
     item_name: Mapped[str] = mapped_column(String(200))
     kind: Mapped[str] = mapped_column(String(9))
     quantity: Mapped[Decimal] = mapped_column(Numeric(18, 6))
+    cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     unit: Mapped[str] = mapped_column(String(4))
     idempotency_key: Mapped[str | None] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

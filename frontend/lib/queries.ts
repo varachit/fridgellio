@@ -9,6 +9,7 @@ import type {
   Stock,
   StockEvent,
 } from "./pantry";
+import { mockStatistics } from "./statistics-mock";
 
 function read<T>(path: string) {
   return queryOptions({
@@ -35,6 +36,30 @@ export const profileQuery = read<Profile>("preferences/profile");
 export const foodsQuery = read<Named[]>("preferences/foods-to-avoid");
 export const equipmentQuery = paginated<Named>("equipment");
 export const historyQuery = paginated<StockEvent>("inventory-history");
+export type StatisticAmounts = { each: string; g: string; ml: string };
+export type GroceryStatistics = {
+  months: {
+    month: string;
+    used: StatisticAmounts;
+    expired: StatisticAmounts;
+    used_cost: string;
+    expired_cost: string;
+  }[];
+};
+export const statisticsQuery = (day: string, utcOffsetMinutes: number) =>
+  queryOptions({
+    queryKey: ["statistics", day, utcOffsetMinutes],
+    queryFn: ({ signal }) => {
+      if (process.env.NEXT_PUBLIC_STATISTICS_MOCK === "true")
+        return Promise.resolve(mockStatistics(day));
+      return api<GroceryStatistics>(
+        `statistics?today=${day}&months=6&utc_offset_minutes=${utcOffsetMinutes}`,
+        "GET",
+        undefined,
+        { signal },
+      );
+    },
+  });
 export const entryEventsQuery = (id: string) =>
   paginated<StockEvent>(`inventory/${id}/events`, ["inventory", id, "events"]);
 export const menusQuery = paginated<Menu>("menus");

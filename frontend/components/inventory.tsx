@@ -399,6 +399,7 @@ export function HistoryView({ entryId }: { entryId?: string }) {
     added: t("Added", "เพิ่มแล้ว"),
     used: t("Used", "ใช้แล้ว"),
     discarded: t("Discarded", "ทิ้งแล้ว"),
+    expired: t("Lost after expiry", "สูญเสียเพราะหมดอายุ"),
   };
   return (
     <>
