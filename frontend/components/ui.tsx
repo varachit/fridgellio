@@ -108,12 +108,16 @@ const errors: Record<string, [string, string]> = {
     "ระบบค้นหาบาร์โค้ดไม่ว่าง ลองใหม่ภายหลัง",
   ],
   camera: [
-    "Couldn’t open the camera. Check permission or type the barcode.",
-    "เปิดกล้องไม่ได้ ตรวจสอบสิทธิ์หรือพิมพ์บาร์โค้ด",
+    "Camera unavailable. Check your camera and allow camera access in your browser.",
+    "ใช้กล้องไม่ได้ ตรวจสอบกล้องและอนุญาตให้เบราว์เซอร์เข้าถึงกล้อง",
   ],
-  barcode_frame_unavailable: [
-    "Couldn’t capture a camera image. Try again or type the barcode digits.",
-    "จับภาพจากกล้องไม่ได้ ลองใหม่หรือพิมพ์เลขบาร์โค้ด",
+  camera_https: [
+    "Open Fridgellio over HTTPS to use the camera.",
+    "เปิด Fridgellio ผ่าน HTTPS เพื่อใช้กล้อง",
+  ],
+  camera_frame_unavailable: [
+    "Couldn’t capture a photo. Try the camera again.",
+    "ถ่ายภาพไม่ได้ กรุณาลองเปิดกล้องอีกครั้ง",
   ],
   photo: [
     "Photo analysis is unavailable. Try again later or add the item manually.",
