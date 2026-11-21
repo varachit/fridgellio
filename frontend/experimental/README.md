@@ -2,7 +2,7 @@
 
 Two original procedural Three.js models for the proposed landing page and dashboard. Both use rounded geometry, matte materials, soft lighting, and Emerald / cream colors. No external textures, model downloads, or component libraries are used. Preview link arrows use Lucide ArrowUpRight paths under the accompanying [Lucide license](../../assets/brand/LUCIDE-LICENSE.txt).
 
-These are reusable illustration assets and a standalone preview, not implemented application screens. The preview contains editorial copy rather than live pantry data.
+The Next.js app uses these illustration assets on its public entry screens and in inventory. This directory also contains the standalone design preview. The preview contains editorial copy rather than live pantry data.
 
 The surrounding UI uses the installed Motion package (Framer Motion) for staggered text entrances, one-time viewport reveals, link-arrow hover, and a small press scale. The standalone HTML preview loads Motion's local browser bundle; the React application can use `motion/react` from the same package.
 
@@ -64,7 +64,7 @@ const illustration = mountIllustration(host, {
 illustration.dispose();
 ```
 
-To integrate into the Next.js app, install the same Three.js version, import the module in a client-side effect, and return `dispose` from its effect cleanup. Avoid mounting during server rendering. Lazy-load below-the-fold illustrations; reserve the host's dimensions before loading to prevent layout shifts.
+The [React wrapper](../components/illustration.tsx) loads the renderer when its host enters the viewport and disposes it on unmount. The frontend depends on the same Three.js version as the preview.
 
 The preview uses custom HTML/CSS composition and custom link styling. It does not introduce a UI component library or browser-native widget interfaces. The preview font is a system sans-serif; use the product's Noto Sans Thai stack when integrating into the application.
 

@@ -32,7 +32,7 @@ pnpm start
 
 ## Authentication and state
 
-NextAuth’s Credentials provider calls FastAPI to register or sign in. FastAPI owns the account, password hash, and seven-day session. NextAuth keeps the FastAPI bearer token in an encrypted HttpOnly cookie. The public session contains the account ID, username (as `user.name`), nullable `user.firstName`, `user.lastName`, and `user.image`, and expiry. The sidebar displays a provisioned HTTPS profile picture or the member’s initials. The same-origin Next.js API proxy forwards the bearer token to FastAPI for authorization. [Credentials provider](https://next-auth.js.org/providers/credentials)
+NextAuth’s Credentials provider calls FastAPI to register or sign in. FastAPI owns the account, password hash, and seven-day session. NextAuth keeps the FastAPI bearer token in an encrypted HttpOnly cookie. The public session contains the account ID, username (as `user.name`), nullable `user.firstName`, `user.lastName`, and `user.image`, and expiry. The navigation displays a provisioned HTTPS profile picture or the member’s initials. The same-origin Next.js API proxy forwards the bearer token to FastAPI for authorization. [Credentials provider](https://next-auth.js.org/providers/credentials)
 
 Reading the web session checks the backend session. Signing out revokes that browser’s backend session before clearing its cookie. If FastAPI cannot confirm revocation, the form allows a retry. Browsers using the previous web cookie sign in once with their existing credentials.
 
@@ -64,8 +64,8 @@ pnpm test:e2e
 
 Playwright starts its own FastAPI and Next.js servers on loopback ports 8310 and 3310. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to use a preinstalled Chromium binary. The suite checks backend session issuance, independent sign-out, expiry, account cache isolation, a phone viewport, and actual stock mutations. Barcode product data in the browser test comes from a controlled response. The backend also has [barcode and validation tests](../backend/tests/test_validation_and_barcode.py).
 
-The sign-in photograph is a locally served ImageGen asset.
+## Kitchen illustrations
 
-## Experimental illustration preview
+The public landing page at `/` links to `/register` and `/sign-in`. Signed-in members see their household kitchen at `/`. The landing page and access forms share the refrigerator illustration. A smaller vegetable bowl appears in the inventory header on larger screens.
 
-The independent [experimental preview](experimental/README.md) contains Three.js refrigerator and vegetable models, hover interactions, and Framer Motion UI animations. It runs on a static server and is not a Next.js application route. See its guide for setup, model exports, screenshots, and checks.
+The app imports the [experimental renderer](experimental/illustration.js) when a scene enters the viewport. Local WebP stills show the same models during loading and if WebGL is unavailable. The [standalone preview](experimental/README.md) includes model exports, interaction checks, and the original layouts.

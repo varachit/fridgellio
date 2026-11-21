@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import Image from "next/image";
+import Link from "next/link";
+import { FridgeFigure, PublicHeader } from "./landing";
 import {
   Eye,
   EyeOff,
@@ -12,7 +13,7 @@ import {
 import { getSession, signIn } from "next-auth/react";
 import { api, ApiError } from "@/lib/api";
 import type { Household } from "@/lib/pantry";
-import { useText, Brand, Message, LanguageButton, useAction } from "./ui";
+import { useText, Message, useAction } from "./ui";
 
 export function AccessFrame({
   children,
@@ -21,47 +22,25 @@ export function AccessFrame({
   children: React.ReactNode;
   changeLanguage: () => void;
 }) {
-  const { t } = useText();
   return (
     <div className="entry">
-      <header className="mast">
-        <Brand />
-        <LanguageButton change={changeLanguage} />
-      </header>
+      <PublicHeader changeLanguage={changeLanguage} />
       <main className="entry-layout">
         <section className="entry-form">{children}</section>
-        <aside className="produce">
-          <Image
-            src="/kitchen.jpg"
-            alt=""
-            fill
-            priority
-            sizes="(max-width: 760px) 100vw, 48vw"
-            style={{ objectFit: "cover" }}
-          />
-          <div className="photo-note">
-            <span className="note-icon">
-              <House size={23} />
-            </span>
-            <div>
-              <strong>{t("The household pantry", "คลังอาหารประจำบ้าน")}</strong>
-              <span>
-                {t(
-                  "One kitchen, shared by everyone at home.",
-                  "ครัวเดียวกันสำหรับทุกคนในบ้าน",
-                )}
-              </span>
-            </div>
-          </div>
-        </aside>
+        <FridgeFigure />
       </main>
     </div>
   );
 }
-export function SignIn({ expired }: { expired: boolean }) {
+export function SignIn({
+  expired,
+  create,
+}: {
+  expired: boolean;
+  create: boolean;
+}) {
   const { t, lang } = useText();
-  const [create, setCreate] = useState(false),
-    [visible, show] = useState(false);
+  const [visible, show] = useState(false);
   const [username, setName] = useState(""),
     [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -110,7 +89,6 @@ export function SignIn({ expired }: { expired: boolean }) {
                   : result?.error || "service_unavailable",
               );
             }
-            history.replaceState(null, "", location.pathname + location.hash);
             // Inline sign-in updates this tab. Publish the session change to the others.
             await getSession();
           });
@@ -215,21 +193,11 @@ export function SignIn({ expired }: { expired: boolean }) {
         {create
           ? t("Already have an account?", "มีบัญชีแล้วใช่ไหม")
           : t("New to Fridgellio?", "เพิ่งเริ่มใช้ Fridgellio ใช่ไหม")}{" "}
-        <button
-          type="button"
-          className="link"
-          disabled={action.busy}
-          onClick={() => {
-            setCreate(!create);
-            action.setError(null);
-            setPassword("");
-            show(false);
-          }}
-        >
+        <Link className="link" href={create ? "/sign-in" : "/register"}>
           {create
             ? t("Sign in", "เข้าสู่ระบบ")
             : t("Create an account", "สร้างบัญชี")}
-        </button>
+        </Link>
       </p>
     </div>
   );
