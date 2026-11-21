@@ -31,3 +31,5 @@ The first implementation is proposed as a browser app with a private pantry for 
 A household member should be able to add groceries, list the equipment they have, and get a menu they can cook with both. After cooking, they can record what they used and see the updated quantities in inventory.
 
 See [Product requirements](docs/requirements.md) for detailed behavior and acceptance criteria.
+
+See [Design tokens and UX proposal](docs/design-tokens.md) for the proposed green-and-white visual system, Lucide icons, accessibility targets, and low-effort pantry workflows. Proposed features beyond the current first release are marked in that document.
