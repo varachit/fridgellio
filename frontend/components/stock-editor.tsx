@@ -31,11 +31,12 @@ type Suggestion = {
   expiry_date: string | null;
 };
 type Barcode = {
-  name: string | null;
+  name: string;
   name_en: string | null;
   name_th: string | null;
-  brands: string | null;
-  package_size: string | null;
+  brands: string;
+  Quantity: number | null;
+  Unit: string | null;
 };
 const blank: Draft = {
   name: "",
@@ -140,6 +141,7 @@ export function StockEditor({
     [file, setFile] = useState<File | null>(null);
   const [queue, setQueue] = useState<Draft[]>([]),
     [hint, setHint] = useState(""),
+    [source, setSource] = useState<string | null>(null),
     [review, setReview] = useState(false);
   const [invalid, setInvalid] = useState<Record<string, string>>({});
   function change(field: keyof Draft, value: string) {
@@ -152,23 +154,38 @@ export function StockEditor({
     setMethod(m);
     setQueue([]);
     setHint("");
+    setSource(null);
     action.setError(null);
     setInvalid({});
   }
   function lookup(digits: string) {
     void action.run(async () => {
-      const data = await client.fetchQuery({
+      const { data, source } = await client.fetchQuery({
         queryKey: ["barcodes", digits, lang],
-        queryFn: ({ signal }) =>
-          api<Barcode>(
+        queryFn: async ({ signal }) => {
+          let source: string | null = null;
+          const data = await api<Barcode>(
             "barcodes/" + digits + "?language=" + lang,
             "GET",
             undefined,
-            { signal },
-          ),
+            {
+              signal,
+              onHeaders: (headers) => {
+                const url = headers.get("X-Barcode-Source");
+                if (url && /^https?:\/\//i.test(url)) source = url;
+              },
+            },
+          );
+          return { data, source };
+        },
         staleTime: 5 * 60_000,
       });
-      setHint([data.brands, data.package_size].filter(Boolean).join(" · "));
+      const size =
+        data.Quantity != null && data.Unit
+          ? `${data.Quantity} ${data.Unit}`
+          : null;
+      setHint([data.brands, size].filter(Boolean).join(" · "));
+      setSource(source);
       setDraft({
         ...blank,
         name: data.name || "",
@@ -379,6 +396,14 @@ export function StockEditor({
                   <>
                     <br />
                     {hint}
+                  </>
+                )}
+                {source && (
+                  <>
+                    <br />
+                    <a href={source} target="_blank" rel="noreferrer">
+                      {t("Product source", "แหล่งข้อมูลสินค้า")}
+                    </a>
                   </>
                 )}
               </p>

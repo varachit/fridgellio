@@ -9,7 +9,7 @@
 - [x] Create and join a household using single-use invitations.
 - [x] Implement manual inventory entry, editing, removal, search, expiry filters, and transactional usage or discard recording.
 - [x] Implement shared equipment and private English or Thai language and Foods to avoid settings.
-- [x] Implement Open Food Facts barcode lookup with localized suggestions and failure handling.
+- [x] Implement OpenAI web search for barcodes with Open Food Facts as a fallback.
 - [x] Add typed photo-analysis and menu-generation placeholders that return `501`.
 
 ## API contract
@@ -30,7 +30,7 @@
 | `GET /api/menus` | List the signed-in member’s saved bilingual menus, newest first. |
 | `GET /api/equipment`, `POST /api/equipment` | List or add equipment. |
 | `PATCH /api/equipment/{equipment_id}`, `DELETE /api/equipment/{equipment_id}` | Edit or remove owned equipment. |
-| `GET /api/barcodes/{code}` | Look up a product without writing inventory. Use an optional `language` override or the saved preference. |
+| `GET /api/barcodes/{code}` | Look up a product without writing inventory. Return code, name, and brands, with optional localized names and numeric `Quantity` and `Unit`. Include `X-Barcode-Source` for web results. Use an optional `language` override or the saved preference. |
 | `POST /api/photos/analyze`, `POST /api/menus` | Reserve authenticated routes for future AI work. Return `501` with a machine-readable error. |
 
 ## Verification

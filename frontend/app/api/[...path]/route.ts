@@ -41,12 +41,19 @@ async function forward(request: NextRequest, context: Context) {
     };
     if (route === "menus" || route === "photos/analyze")
       init.signal = AbortSignal.timeout(90_000);
+    if (path[0] === "barcodes") init.signal = AbortSignal.timeout(35_000);
     if (request.body)
       Object.assign(init, { body: request.body, duplex: "half" });
     const upstream = await backendFetch(route + request.nextUrl.search, init);
+    const responseHeaders = new Headers({
+      ...noStore,
+      "Content-Type": "application/json",
+    });
+    const source = upstream.headers.get("X-Barcode-Source");
+    if (source) responseHeaders.set("X-Barcode-Source", source);
     return new NextResponse(upstream.body, {
       status: upstream.status,
-      headers: { ...noStore, "Content-Type": "application/json" },
+      headers: responseHeaders,
     });
   } catch {
     return fail("service_unavailable", 503);

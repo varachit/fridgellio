@@ -393,7 +393,8 @@ test("barcode review, availability errors, edit and removal", async ({
         name_en: "Rice",
         name_th: "ข้าว",
         brands: "Example",
-        package_size: "500 g",
+        Quantity: 500,
+        Unit: "g",
       },
     }),
   );

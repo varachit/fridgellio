@@ -182,11 +182,12 @@ class InvitationView(BaseModel):
 
 class BarcodeView(BaseModel):
     code: str
-    name: str | None
-    name_en: str | None
-    name_th: str | None
-    brands: str | None
-    package_size: str | None
+    name: str
+    name_en: str | None = None
+    name_th: str | None = None
+    brands: str
+    quantity: float | None = Field(default=None, gt=0, allow_inf_nan=False, alias="Quantity")
+    unit: str | None = Field(default=None, alias="Unit")
 
 
 class ErrorField(BaseModel):
