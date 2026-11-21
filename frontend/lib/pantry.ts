@@ -6,6 +6,13 @@ export type Unit = (typeof units)[number];
 export type Status =
   "past_date" | "due_today" | "use_soon" | "later" | "no_date";
 export type Household = { id: string; can_invite: boolean };
+export type MemberProfile = {
+  username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  profile_picture_url: string | null;
+};
+export type HouseholdMember = MemberProfile & { id: string; is_owner: boolean };
 export type Named = { id: string; name: string };
 export type Stock = Named & {
   name_en: string | null;
@@ -18,8 +25,9 @@ export type Stock = Named & {
 };
 export type StockEvent = {
   id: string;
+  actor_account_id: string;
   item_name: string;
-  kind: "used" | "discarded";
+  kind: "added" | "used" | "discarded";
   quantity: string;
   unit: Unit;
   created_at: string;

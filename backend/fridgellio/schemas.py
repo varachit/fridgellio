@@ -128,8 +128,9 @@ class EventCreate(InputModel):
 class EventView(OutputModel):
     id: UUID
     stock_id: UUID
+    actor_account_id: UUID
     item_name: str
-    kind: Literal["used", "discarded"]
+    kind: Literal["added", "used", "discarded"]
     quantity: Decimal
     unit: Unit
     created_at: datetime
@@ -171,13 +172,41 @@ class HouseholdView(BaseModel):
     can_invite: bool
 
 
+class HouseholdMemberView(OutputModel):
+    id: UUID
+    username: str | None
+    first_name: str | None
+    last_name: str | None
+    profile_picture_url: str | None
+    is_owner: bool
+
+
 class InvitationInput(InputModel):
-    token: Annotated[str, StringConstraints(strict=True, pattern=r"^[A-Za-z0-9_-]{43}$")]
+    token: Annotated[
+        str,
+        StringConstraints(
+            strict=True,
+            strip_whitespace=True,
+            pattern=r"^(?:[A-Za-z0-9]{4}-?[A-Za-z0-9]{4}|[A-Za-z0-9_-]{43})$",
+        ),
+    ]
+
+    @field_validator("token")
+    @classmethod
+    def canonical_code(cls, token: str) -> str:
+        if len(token) == 43:
+            return token
+        code = token.replace("-", "").upper()
+        return f"{code[:4]}-{code[4:]}"
 
 
-class InvitationView(BaseModel):
-    token: str
+class PendingInvitationView(BaseModel):
+    id: str
     expires_at: datetime
+
+
+class InvitationView(PendingInvitationView):
+    token: str
 
 
 class BarcodeView(BaseModel):

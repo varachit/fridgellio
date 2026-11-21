@@ -17,9 +17,10 @@
 | Route | Behavior |
 | --- | --- |
 | `GET /health/live`, `GET /health/ready` | Check process and database health respectively. |
-| `POST /api/auth/register`, `POST /api/auth/login` | Accept JSON with `username` and `password`. Registration also accepts optional `first_name` and `last_name` (1–200 characters each after trimming) and an initial `language` of `en` (default) or `th`. Return the account, a new bearer token, and its expiry seven days after issue. Return `409` for an unavailable username on registration, `401` for invalid credentials on login, or `429` when rate limited. |
+| `POST /api/auth/register`, `POST /api/auth/login` | Accept JSON with `username` and `password`. Registration also requires `first_name` and `last_name` (1–200 characters each after trimming) and accepts an initial `language` of `en` (default) or `th`. Return the account, a new bearer token, and its expiry seven days after issue. Return `409` for an unavailable username on registration, `401` for invalid credentials on login, or `429` when rate limited. |
 | `GET /api/auth/me`, `POST /api/auth/logout` | Read the signed-in account or revoke the current bearer token. |
 | `GET /api/preferences`, `PATCH /api/preferences` | Read or update the account's language. |
+| `GET /api/preferences/profile`, `PATCH /api/preferences/profile` | Read or update the signed-in account's names. A patch can update either name when the resulting profile has both names. Return `422` if a name is blank or null, or if the updated profile would still lack a name. |
 | `GET /api/preferences/foods-to-avoid`, `POST /api/preferences/foods-to-avoid`, `DELETE /api/preferences/foods-to-avoid/{food_id}` | Manage the signed-in account's private list. |
 | `GET /api/household`, `POST /api/household` | Read the current membership or create a household. |
 | `POST /api/household/invitations`, `POST /api/household/join` | Issue and accept a single-use invitation. |

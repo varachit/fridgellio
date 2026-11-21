@@ -17,6 +17,7 @@ import {
   LogOut,
   Menu as MenuIcon,
   House,
+  UsersRound,
 } from "lucide-react";
 import { api, ApiError, errorCode } from "@/lib/api";
 import {
@@ -24,6 +25,7 @@ import {
   householdQuery,
   inventoryQuery,
   preferencesQuery,
+  profileQuery,
 } from "@/lib/queries";
 import { LanguageProvider, useLanguage } from "./language";
 import { localDay, type Household, type Language } from "@/lib/pantry";
@@ -39,10 +41,22 @@ import {
 } from "./ui";
 import { Inventory, HistoryView } from "./inventory";
 import { StockEditor } from "./stock-editor";
+import {
+  HouseholdInvitations,
+  HouseholdMembers,
+  MemberIdentity,
+} from "./household-members";
 import { Meals, SettingsView } from "./management";
 type Account = Session["user"];
-type Page = "pantry" | "soon" | "meals" | "history" | "settings";
-const pages: Page[] = ["pantry", "soon", "meals", "history", "settings"];
+type Page = "pantry" | "soon" | "meals" | "history" | "members" | "settings";
+const pages: Page[] = [
+  "pantry",
+  "soon",
+  "meals",
+  "history",
+  "members",
+  "settings",
+];
 function hashPage() {
   const value = location.hash.slice(1) as Page;
   return pages.includes(value) ? value : "pantry";
@@ -179,32 +193,19 @@ function MemberKitchen({ account }: { account: Account }) {
     />
   );
 }
-function MemberIdentity({ account }: { account: Account }) {
-  const [failedImage, setFailedImage] = useState<string | null>(null);
-  const names = [account.firstName, account.lastName].filter(
-    (name): name is string => Boolean(name),
-  );
-  const displayName = names.join(" ") || account.name;
-  const initials = (names.length ? names : [account.name])
-    .map((name) => Array.from(name)[0])
-    .join("")
-    .toLocaleUpperCase();
+function SignedInMember({ account }: { account: Account }) {
+  const profile = useQuery(profileQuery);
   return (
-    <span className="user">
-      <span className="avatar" aria-hidden="true">
-        {account.image && failedImage !== account.image ? (
-          <img
-            src={account.image}
-            alt=""
-            referrerPolicy="no-referrer"
-            onError={() => setFailedImage(account.image)}
-          />
-        ) : (
-          initials
-        )}
-      </span>
-      <span>{displayName}</span>
-    </span>
+    <MemberIdentity
+      profile={{
+        ...(profile.data ?? {
+          first_name: account.firstName,
+          last_name: account.lastName,
+        }),
+        username: account.name,
+        profile_picture_url: account.image,
+      }}
+    />
   );
 }
 
@@ -268,6 +269,11 @@ function Workspace({
     { page: "soon", icon: CalendarClock, title: t("Use soon", "ควรใช้เร็ว ๆ นี้") },
     { page: "meals", icon: ChefHat, title: t("Meal ideas", "ไอเดียมื้ออาหาร") },
     { page: "history", icon: History, title: t("History", "ประวัติ") },
+    {
+      page: "members",
+      icon: UsersRound,
+      title: t("Household", "ครัวเรือน"),
+    },
     { page: "settings", icon: Settings, title: t("Settings", "การตั้งค่า") },
   ];
   const title = links.find((link) => link.page === page)!.title;
@@ -311,7 +317,7 @@ function Workspace({
             ))}
           </nav>
           <div className="side-bottom">
-            <MemberIdentity account={account} />
+            <SignedInMember account={account} />
             <button disabled={busy} className="plain" onClick={logout}>
               <LogOut size={17} />
               {t("Sign out", "ออกจากระบบ")}
@@ -342,8 +348,12 @@ function Workspace({
                     "ดูวัตถุดิบที่ครบกำหนดวันนี้และในสามวันข้างหน้า",
                   ),
                   history: t(
-                    "Food used or discarded by your household.",
-                    "อาหารที่สมาชิกในบ้านใช้หรือทิ้ง",
+                    "See what your household added, used, or discarded.",
+                    "ดูรายการที่สมาชิกในบ้านเพิ่ม ใช้ หรือทิ้ง",
+                  ),
+                  members: t(
+                    "People who can access your shared pantry.",
+                    "ผู้ที่เข้าถึงคลังอาหารส่วนรวมได้",
                   ),
                   meals: t(
                     "Plan a meal with the ingredients and equipment you have.",
@@ -378,8 +388,13 @@ function Workspace({
         )}
         {page === "history" ? (
           <HistoryView />
+        ) : page === "members" ? (
+          <div className="panels">
+            <HouseholdMembers accountId={account.id} />
+            {household.can_invite && <HouseholdInvitations />}
+          </div>
         ) : page === "settings" ? (
-          <SettingsView household={household} />
+          <SettingsView username={account.name} />
         ) : (
           <>
             <Message code={errorCode(stock.error)} />
