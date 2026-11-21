@@ -25,7 +25,7 @@ function readProfile(account: {
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
   session: { strategy: "jwt", maxAge: week },
-  pages: { signIn: "/" },
+  pages: { signIn: "/sign-in" },
   providers: [
     Credentials({
       credentials: {

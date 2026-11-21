@@ -1,13 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useId } from "react";
-import {
-  Refrigerator,
-  X,
-  CircleAlert,
-  LoaderCircle,
-  Globe,
-  Sprout,
-} from "lucide-react";
+import { X, CircleAlert, LoaderCircle, Globe, Sprout } from "lucide-react";
 import { useLanguage } from "./language";
 import { ApiError } from "@/lib/api";
 
@@ -21,10 +14,8 @@ export function useText() {
 export function Brand() {
   return (
     <span className="brand">
-      <span className="brandmark">
-        <Refrigerator />
-      </span>
-      Fridgellio
+      <img src="/icon.svg" width="36" height="36" alt="" />
+      fridgellio
     </span>
   );
 }

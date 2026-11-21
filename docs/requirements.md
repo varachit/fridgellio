@@ -87,6 +87,8 @@ Store expiry dates as calendar dates. Determine today using the household member
 
 ## Usability requirements
 
+- Show signed-out visitors a bilingual landing page with links to sign in and create an account. Opening the home page with an active session takes the member directly to household setup or inventory.
+- Treat landing-page and dashboard 3D illustrations as optional decoration. Keep pantry data and actions in accessible HTML, show a static fallback if WebGL is unavailable, honor reduced motion, and stop animation while offscreen or in a hidden tab. Illustration loading must not block core tasks.
 - Support phone and desktop layouts. Give all form controls visible labels, support keyboard navigation, and convey expiry status with text.
 - Show clear empty states for inventory and food due soon. Show a loading state during menu generation and give the user a next action when a menu is unavailable.
 - Keep manual entry available when the camera is unavailable or permission is declined. Show progress for photo analysis and barcode lookup and keep the entry editable while reviewing results.
