@@ -946,9 +946,12 @@ details label {
   margin-top: 1.3rem;
   justify-content: space-between;
 }
-.scanner {
+.camera-preview {
+  display: block;
   width: 100%;
+  aspect-ratio: 4 / 3;
   max-height: 18rem;
+  object-fit: contain;
   background: #1b3324;
 }
 .panels {
