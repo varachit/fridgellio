@@ -12,7 +12,13 @@ import {
 } from "@/lib/queries";
 import { Busy, Empty, Message, Retry, useAction, useText } from "./ui";
 
-export function MemberIdentity({ profile }: { profile?: MemberProfile }) {
+export function MemberIdentity({
+  profile,
+  avatarOnly = false,
+}: {
+  profile?: MemberProfile;
+  avatarOnly?: boolean;
+}) {
   const { t } = useText();
   const [failedImage, setFailedImage] = useState<string | null>(null);
   const names = [profile?.first_name, profile?.last_name].filter(
@@ -39,7 +45,7 @@ export function MemberIdentity({ profile }: { profile?: MemberProfile }) {
           initials
         )}
       </span>
-      <span>{displayName}</span>
+      {!avatarOnly && <span>{displayName}</span>}
     </span>
   );
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FridgeFigure, PublicHeader } from "./landing";
 import {
@@ -18,13 +18,15 @@ import { useText, Message, useAction } from "./ui";
 export function AccessFrame({
   children,
   changeLanguage,
+  headerActions,
 }: {
   children: React.ReactNode;
   changeLanguage: () => void;
+  headerActions?: React.ReactNode;
 }) {
   return (
     <div className="entry">
-      <PublicHeader changeLanguage={changeLanguage} />
+      <PublicHeader changeLanguage={changeLanguage} actions={headerActions} />
       <main className="entry-layout">
         <section className="entry-form">{children}</section>
         <FridgeFigure />
@@ -208,19 +210,22 @@ export function SignIn({
 }
 export function Onboarding({
   joined,
-  signOut,
+  onBusyChange,
 }: {
   joined: (h: Household) => void;
-  signOut: () => void;
+  onBusyChange: (busy: boolean) => void;
 }) {
   const { t } = useText(),
     action = useAction();
   const [join, setJoin] = useState(false),
     [token, setToken] = useState("");
+  useEffect(() => {
+    onBusyChange(action.busy);
+  }, [action.busy, onBusyChange]);
   return (
     <div className="access-inner">
       <House className="section-symbol" />
-      <h1>{t("Your household", "ครัวเรือนของคุณ")}</h1>
+      <h1 tabIndex={-1}>{t("Your household", "ครัวเรือนของคุณ")}</h1>
       <p className="intro">
         {t(
           "Start a shared pantry, or enter an invitation code from someone in your household.",
@@ -291,9 +296,6 @@ export function Onboarding({
           </button>
         </fieldset>
       </form>
-      <button className="link" onClick={signOut} disabled={action.busy}>
-        {t("Sign out", "ออกจากระบบ")}
-      </button>
     </div>
   );
 }

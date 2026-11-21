@@ -47,7 +47,7 @@ export function mountIllustration(host, { variant = 'landing', animate = variant
   const bounds = new THREE.Box3().setFromObject(model);
   const center = bounds.getCenter(new THREE.Vector3());
   const camera = new THREE.OrthographicCamera(-3, 3, 3, -3, 0.1, 50);
-  camera.position.copy(center).add(new THREE.Vector3(5, variant === 'landing' ? 3.2 : 5.8, 7));
+  camera.position.copy(center).add(new THREE.Vector3(5, variant === 'landing' ? 3.2 : variant === 'groceries' ? 4.2 : 5.8, 7));
   camera.lookAt(center);
   camera.updateMatrixWorld(true);
   // Measure projected corners so both wide and narrow hosts keep the entire model visible.
@@ -63,6 +63,8 @@ export function mountIllustration(host, { variant = 'landing', animate = variant
   const fridge = model.getObjectByName('refrigerator');
   // Keep the original cabinet area active while its moving doors reveal gaps.
   const fridgeHoverBounds = fridge ? new THREE.Box3().setFromObject(fridge) : null;
+  const bag = model.getObjectByName('grocery-bag');
+  const bagHoverBounds = bag ? new THREE.Box3().setFromObject(bag) : null;
   let hovered = null;
   let touchStart = null;
   let visible = true;
@@ -148,6 +150,7 @@ export function mountIllustration(host, { variant = 'landing', animate = variant
       if (object.userData.interaction) return object.userData.interaction;
     }
     if (hovered === 'fridge' && fridgeHoverBounds && raycaster.ray.intersectsBox(fridgeHoverBounds)) return 'fridge';
+    if (hovered === 'bag' && bagHoverBounds && raycaster.ray.intersectsBox(bagHoverBounds)) return 'bag';
     return null;
   }
   function setHovered(next) {
@@ -173,9 +176,9 @@ export function mountIllustration(host, { variant = 'landing', animate = variant
     touchStart = null;
     if (distance > 8) return; // Let touch scrolling remain scrolling.
     const next = pickInteraction(event);
-    if (next === 'bowl' && hovered === 'bowl') {
+    if ((next === 'bowl' || next === 'bag') && hovered === next) {
       hoverAnimation.setTarget(null);
-      hoverAnimation.setTarget('bowl', motionPreference.matches);
+      hoverAnimation.setTarget(next, motionPreference.matches);
       syncAnimation();
     } else setHovered(next === hovered ? null : next);
   }

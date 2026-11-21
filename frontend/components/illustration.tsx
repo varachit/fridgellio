@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 export function Illustration({
   variant,
 }: {
-  variant: "landing" | "dashboard";
+  variant: "landing" | "dashboard" | "groceries";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {

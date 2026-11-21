@@ -163,9 +163,46 @@ function bowl(parent, t, position, scale = 1) {
   return group;
 }
 
+function groceryBag(parent, t) {
+  const bag = new THREE.Group();
+  bag.name = 'grocery-bag';
+  bag.userData.interaction = 'bag';
+  parent.add(bag);
+  // Four paper walls leave a real opening for the groceries and handles.
+  for (const z of [-0.38, 0.38]) t.box(bag, [1.15, 1.2, 0.055], [0, 0.66, z], palette.wood, 0.025);
+  for (const x of [-0.55, 0.55]) t.box(bag, [0.055, 1.2, 0.76], [x, 0.66, 0], palette.wood, 0.025);
+  t.box(bag, [1.1, 0.08, 0.73], [0, 0.08, 0], palette.wood, 0.025);
+  // Folded top edges keep the silhouette soft without adding surface clutter.
+  for (const z of [-0.38, 0.38]) t.box(bag, [1.16, 0.045, 0.075], [0, 1.26, z], palette.wood, 0.015);
+  for (const z of [-0.29, 0.29]) {
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.3, 1.2, z), new THREE.Vector3(-0.26, 1.7, z),
+      new THREE.Vector3(0.26, 1.7, z), new THREE.Vector3(0.3, 1.2, z),
+    ]);
+    bag.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.028, 8, false), new THREE.MeshStandardMaterial({ color: palette.wood, roughness: 0.95 })));
+  }
+  const food = new THREE.Group();
+  food.name = 'grocery-bag-food';
+  bag.add(food);
+  t.greens(food, [-0.24, 1.03, -0.04]);
+  t.carrot(food, [0.29, 1.38, -0.04], [0.08, 0, 2.94]);
+  t.tomato(food, [0.15, 1.3, 0.22], 0.22);
+  t.tomato(food, [-0.25, 1.23, 0.23], 0.15);
+  const bread = new THREE.Group();
+  bread.position.set(-0.06, 1.55, -0.17);
+  bread.rotation.z = 0.16;
+  food.add(bread);
+  t.ball(bread, [0, 0, 0], [0.17, 0.55, 0.15], palette.egg);
+  for (const y of [0.05, 0.24, 0.4]) {
+    const score = t.box(bread, [0.18, 0.027, 0.025], [0, y, 0.13 - y * 0.1], palette.wood, 0.012);
+    score.rotation.z = -0.32;
+  }
+  return bag;
+}
+
 /** Returns an unlit, exportable Group. No DOM, network, or GPU is required. */
 export function createIllustrationModel(variant = 'landing') {
-  if (!['landing', 'dashboard'].includes(variant)) throw new TypeError('Unknown illustration variant');
+  if (!['landing', 'dashboard', 'groceries'].includes(variant)) throw new TypeError('Unknown illustration variant');
   const root = new THREE.Group();
   root.name = `Fridgellio ${variant} illustration`;
   root.userData = { variant, units: 'meters', author: 'Fridgellio', decorative: true };
@@ -191,6 +228,9 @@ export function createIllustrationModel(variant = 'landing') {
     }
     t.greens(bag, [-0.12, 0.66, 0]);
     t.carrot(bag, [0.15, 0.85, 0.05], [0, 0, 2.9]);
+  } else if (variant === 'groceries') {
+    t.cylinder(root, 0.98, 0.94, 0.07, [0, -0.015, 0], palette.mint);
+    groceryBag(root, t);
   } else {
     root.userData.interaction = 'bowl';
     t.cylinder(root, 1.45, 1.38, 0.1, [0, 0, 0], palette.mint);

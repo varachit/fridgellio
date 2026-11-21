@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffectEvent, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PencilLine, Camera, ScanBarcode } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
@@ -8,6 +8,7 @@ import {
   units,
   validDate,
   quantityError,
+  priceError,
   packageMeasurement,
   type Stock,
   type Unit,
@@ -15,12 +16,19 @@ import {
   type Localized,
 } from "@/lib/pantry";
 import { Dialog, Message, useAction, useText, useLabels } from "./ui";
+import {
+  CameraPreview,
+  captureFrame,
+  GroceryPhoto,
+  type CameraSession,
+} from "./grocery-camera";
 
 type Draft = {
   name: string;
   name_en: string;
   name_th: string;
   quantity: string;
+  price: string;
   unit: Unit | "";
   location: Location | "";
   expiry_date: string;
@@ -44,6 +52,7 @@ const blank: Draft = {
   name_en: "",
   name_th: "",
   quantity: "",
+  price: "",
   unit: "",
   location: "",
   expiry_date: "",
@@ -55,6 +64,7 @@ function fromStock(stock?: Stock): Draft {
     name_en: stock.name_en ?? "",
     name_th: stock.name_th ?? "",
     quantity: stock.quantity,
+    price: stock.price ?? "",
     unit: stock.unit,
     location: stock.location,
     expiry_date: stock.expiry_date ?? "",
@@ -66,28 +76,14 @@ function payload(draft: Draft) {
     name_en: draft.name_en.trim() || null,
     name_th: draft.name_th.trim() || null,
     quantity: draft.quantity,
+    price: draft.price || null,
     unit: draft.unit,
     location: draft.location,
     expiry_date: draft.expiry_date || null,
   };
 }
 async function readBarcodeFrame(video: HTMLVideoElement, signal: AbortSignal) {
-  const { videoWidth, videoHeight } = video;
-  if (!videoWidth || !videoHeight)
-    throw new ApiError("barcode_frame_unavailable");
-
-  const canvas = document.createElement("canvas");
-  const scale = Math.min(1, 1920 / Math.max(videoWidth, videoHeight));
-  canvas.width = Math.max(1, Math.round(videoWidth * scale));
-  canvas.height = Math.max(1, Math.round(videoHeight * scale));
-  const context = canvas.getContext("2d");
-  if (!context) throw new ApiError("barcode_frame_unavailable");
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const photo = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, "image/jpeg", 0.92);
-  });
-  if (!photo) throw new ApiError("barcode_frame_unavailable");
-
+  const photo = await captureFrame(video);
   const data = new FormData();
   data.append("photo", photo, "barcode.jpg");
   const digits = await api<unknown>("barcodes/decode", "POST", data, {
@@ -106,76 +102,40 @@ function Scanner({
   failed: (code: string) => void;
 }) {
   const { t } = useText();
-  const video = useRef<HTMLVideoElement>(null);
-  const handlers = useRef({ found, failed });
-  handlers.current = { found, failed };
-  useEffect(() => {
-    const preview = video.current;
-    if (!preview) return;
-    const controller = new AbortController();
-    const { signal } = controller;
-    let stream: MediaStream | undefined;
+  const onFound = useEffectEvent(found);
+  const onFailed = useEffectEvent(failed);
+  function start({ video, signal, stop }: CameraSession) {
     let timer: number | undefined;
-
-    const stop = () => {
-      if (signal.aborted) return;
-      controller.abort();
-      window.clearTimeout(timer);
-      stream?.getTracks().forEach((track) => track.stop());
-      preview.srcObject = null;
-    };
-
-    async function scan(element: HTMLVideoElement) {
+    signal.addEventListener("abort", () => window.clearTimeout(timer), {
+      once: true,
+    });
+    async function scan() {
       if (signal.aborted) return;
       let digits: string;
       try {
-        digits = await readBarcodeFrame(element, signal);
+        digits = await readBarcodeFrame(video, signal);
       } catch (error) {
         if (signal.aborted) return;
         const code =
           error instanceof ApiError ? error.code : "service_unavailable";
         if (code === "barcode_not_found" || code === "multiple_barcodes") {
           // Wait for the user to reposition the camera before sending another frame.
-          timer = window.setTimeout(() => void scan(element), 750);
+          timer = window.setTimeout(scan, 750);
         } else {
           stop();
-          handlers.current.failed(code);
+          onFailed(code);
         }
         return;
       }
       if (signal.aborted) return;
       stop();
-      handlers.current.found(digits);
+      onFound(digits);
     }
-
-    async function start(element: HTMLVideoElement) {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      });
-      if (signal.aborted) {
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
-      element.srcObject = stream;
-      await element.play();
-      void scan(element);
-    }
-
-    start(preview).catch(() => {
-      if (signal.aborted) return;
-      stop();
-      handlers.current.failed("camera");
-    });
-    return stop;
-  }, []);
+    void scan();
+  }
   return (
     <>
-      <video className="scanner" ref={video} autoPlay playsInline muted />
+      <CameraPreview onReady={start} failed={failed} />
       <p className="hint" role="status">
         {t("Point the camera at one barcode.", "เล็งกล้องไปที่บาร์โค้ดหนึ่งอัน")}
       </p>
@@ -203,8 +163,7 @@ export function StockEditor({
     ),
     [draft, setDraft] = useState(initialDraft);
   const [code, setCode] = useState(""),
-    [scan, setScan] = useState(false),
-    [file, setFile] = useState<File | null>(null);
+    [scan, setScan] = useState(false);
   const [queue, setQueue] = useState<Draft[]>([]),
     [hint, setHint] = useState(""),
     [source, setSource] = useState<string | null>(null),
@@ -365,13 +324,13 @@ export function StockEditor({
           </fieldset>
         </form>
       ) : method === "photo" && !review ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!file) return;
+        <GroceryPhoto
+          busy={action.busy}
+          setError={action.setError}
+          analyze={(photo) => {
             void action.run(async () => {
               const data = new FormData();
-              data.append("photo", file);
+              data.append("photo", photo);
               const response = await api<{ suggestions: Suggestion[] }>(
                 "photos/analyze",
                 "POST",
@@ -393,25 +352,7 @@ export function StockEditor({
               setReview(true);
             }, "photo");
           }}
-        >
-          <fieldset disabled={action.busy}>
-            <label>
-              {t("Grocery photo", "ภาพถ่ายของสด")}
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                required
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-            </label>
-            <button className="primary">
-              {action.busy
-                ? t("Analyzing photo…", "กำลังวิเคราะห์ภาพ…")
-                : t("Analyze photo", "วิเคราะห์รูป")}
-            </button>
-          </fieldset>
-        </form>
+        />
       ) : (
         <form
           onSubmit={(e) => {
@@ -422,6 +363,8 @@ export function StockEditor({
             if (!draft.location) errors.location = "required";
             const q = quantityError(draft.quantity, draft.unit || "g");
             if (q) errors.quantity = q;
+            const price = priceError(draft.price);
+            if (price) errors.price = price;
             if (!validDate(draft.expiry_date)) errors.expiry_date = "date";
             setInvalid(errors);
             if (Object.keys(errors).length) return;
@@ -515,6 +458,18 @@ export function StockEditor({
                 </select>
               </label>
             </div>
+            <label>
+              {t("Price paid (optional, THB)", "ราคาที่จ่าย (ถ้ามี, บาท)")}
+              <input
+                inputMode="decimal"
+                maxLength={13}
+                placeholder="0.00"
+                aria-invalid={!!invalid.price}
+                value={draft.price}
+                onChange={(e) => change("price", e.target.value)}
+              />
+              {fieldError("price")}
+            </label>
             <label>
               {t("Storage location", "ที่จัดเก็บ")}
               <select

@@ -3,7 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, File, Header, Path, Query, Request, Response, UploadFile
-from sqlalchemy import or_, select, update
+from sqlalchemy import case, or_, select, update
 from starlette.concurrency import run_in_threadpool
 
 from .auth import router as auth_router
@@ -19,6 +19,7 @@ from .data import CurrentAccount, Member, Session, owned_stock, stock_view
 from .errors import ApiError, responses
 from .households import router as households_router
 from .models import Equipment, InventoryEvent, Menu, StockEntry
+from .photos import analyze_grocery_photo
 from .preferences import router as preferences_router
 from .recommendations import router as recommendations_router
 from .schemas import (
@@ -235,19 +236,29 @@ async def record_event(
         raise ApiError(404, "stock_not_found", "The stock entry was not found.")
     if not count_is_valid(entry.unit, body.quantity):
         raise ApiError(422, "invalid_count", "Quantity must be a whole number for each.")
-    remaining = await session.scalar(
-        update(StockEntry)
-        .where(
-            StockEntry.id == entry.id,
-            StockEntry.household_id == member.household_id,
-            StockEntry.quantity >= body.quantity,
+    remaining = (
+        await session.execute(
+            update(StockEntry)
+            .where(
+                StockEntry.id == entry.id,
+                StockEntry.household_id == member.household_id,
+                StockEntry.quantity >= body.quantity,
+            )
+            .values(
+                quantity=StockEntry.quantity - body.quantity,
+                price=case(
+                    (StockEntry.price.is_(None), None),
+                    else_=StockEntry.price
+                    * (StockEntry.quantity - body.quantity)
+                    / StockEntry.quantity,
+                ),
+            )
+            .returning(StockEntry.quantity, StockEntry.price)
         )
-        .values(quantity=StockEntry.quantity - body.quantity)
-        .returning(StockEntry.quantity)
-    )
+    ).one_or_none()
     if remaining is None:
         raise ApiError(409, "insufficient_stock", "The deduction exceeds available stock.")
-    entry.quantity = remaining
+    entry.quantity, entry.price = remaining
     event = InventoryEvent(
         stock_id=entry.id,
         actor_account_id=member.account_id,
@@ -376,27 +387,29 @@ async def barcode(
 @api.post(
     "/photos/analyze",
     tags=["Grocery intake"],
-    responses=responses(501),
-    summary="Analyze a grocery photo (placeholder)",
-    openapi_extra={
-        "requestBody": {
-            "required": True,
-            "content": {
-                "multipart/form-data": {
-                    "schema": {
-                        "type": "object",
-                        "required": ["photo"],
-                        "properties": {
-                            "photo": {"type": "string", "format": "binary"},
-                        },
-                    }
-                },
-            },
-        }
+    responses={
+        **responses(429, 502, 503),
+        413: {"description": "The multipart request exceeds 8 MiB."},
     },
+    summary="Analyze groceries in a photo",
+    max_body_size=8 * 1024 * 1024,
+    form_limits={"max_files": 1, "max_fields": 0},
 )
-async def analyze_photo(account: CurrentAccount) -> PhotoAnalysis:
-    raise ApiError(501, "ai_not_implemented", "Photo analysis is not available yet.")
+async def analyze_photo(
+    photo: Annotated[UploadFile, File(description="A JPEG, PNG, or WebP grocery image")],
+    request: Request,
+    account: CurrentAccount,
+    session: Session,
+) -> PhotoAnalysis:
+    client = request.app.state.openai_client
+    if client is None:
+        await session.rollback()
+        raise ApiError(503, "photo_unavailable", "Photo analysis is not configured.")
+    allowed = await take_attempt(session, f"photo:analyze:{account.id}", 20)
+    await session.commit()
+    if not allowed:
+        raise ApiError(429, "photo_rate_limited", "Photo analysis is busy. Try again shortly.")
+    return await analyze_grocery_photo(client, await photo.read())
 
 
 @api.get("/menus", tags=["Menus"])

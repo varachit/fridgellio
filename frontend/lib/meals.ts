@@ -33,13 +33,32 @@ export type MealPreferences = {
   equipment: string[];
 };
 export type RecommendationPreview = {
-  status: "preview";
+  status: "preview" | "generated";
   recipe_limit: 5;
   preferences: MealPreferences;
-  ingredients: Pick<
+  ingredients: (Pick<
     Stock,
     "name" | "name_en" | "name_th" | "unit" | "quantity"
-  >[];
+  > & {
+    estimated_price: string | null;
+    price_coverage: "full" | "partial" | "none";
+  })[];
+  recipes: {
+    name: Localized;
+    ingredients: {
+      name: Localized;
+      quantity: string;
+      unit: Stock["unit"];
+      estimated_price: string | null;
+      price_coverage: "full" | "partial" | "none";
+    }[];
+    equipment: string[];
+    steps: Localized[];
+    minutes: number;
+    difficulty: Exclude<keyof typeof difficulties, "any">;
+    estimated_price: string | null;
+    price_coverage: "full" | "partial" | "none";
+  }[];
 };
 
 export function translatedNames(

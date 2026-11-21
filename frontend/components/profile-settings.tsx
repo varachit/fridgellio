@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserRound } from "lucide-react";
-import { api, ApiError, errorCode } from "@/lib/api";
+import { api, errorCode } from "@/lib/api";
 import { membersQuery, profileQuery, type Profile } from "@/lib/queries";
 import { Busy, Message, Retry, useAction, useText } from "./ui";
 
 const profilePath = profileQuery.queryKey[0];
 
-export function ProfileSettings({ username }: { username: string }) {
+export function ProfileSettings() {
   const { t } = useText();
   const profile = useQuery(profileQuery);
 
@@ -19,10 +19,6 @@ export function ProfileSettings({ username }: { username: string }) {
         <UserRound aria-hidden="true" />
         {t("Profile", "โปรไฟล์")}
       </h2>
-      <label>
-        {t("Username", "ชื่อผู้ใช้")}
-        <input value={username} readOnly />
-      </label>
       {profile.data ? (
         <ProfileForm profile={profile.data} />
       ) : profile.error ? (
@@ -38,6 +34,7 @@ export function ProfileSettings({ username }: { username: string }) {
 }
 
 function ProfileForm({ profile }: { profile: Profile }) {
+  const validationId = useId();
   const { t } = useText();
   const client = useQueryClient();
   const action = useAction();
@@ -47,12 +44,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
   const [saved, setSaved] = useState(false);
   const firstName = draft.first_name ?? profile.first_name ?? "";
   const lastName = draft.last_name ?? profile.last_name ?? "";
-  const changes: typeof draft = {};
-  if (draft.first_name !== undefined && firstName.trim() !== profile.first_name)
-    changes.first_name = firstName.trim();
-  if (draft.last_name !== undefined && lastName.trim() !== profile.last_name)
-    changes.last_name = lastName.trim();
-  const changed = Object.keys(changes).length > 0;
+  const valid = Boolean(firstName.trim() && lastName.trim());
 
   function edit(field: keyof Profile, value: string) {
     setDraft((draft) => ({ ...draft, [field]: value }));
@@ -62,13 +54,15 @@ function ProfileForm({ profile }: { profile: Profile }) {
 
   return (
     <form
+      noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        if (!changed) return;
+        if (!valid || action.busy) return;
         void action.run(async () => {
-          if (!firstName.trim() || !lastName.trim())
-            throw new ApiError("profile_names_required");
-          const updated = await api<Profile>(profilePath, "PATCH", changes);
+          const updated = await api<Profile>(profilePath, "PATCH", {
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+          });
           await client.cancelQueries({ queryKey: profileQuery.queryKey });
           client.setQueryData(profileQuery.queryKey, updated);
           void client.invalidateQueries({ queryKey: membersQuery.queryKey });
@@ -86,6 +80,8 @@ function ProfileForm({ profile }: { profile: Profile }) {
               autoComplete="given-name"
               maxLength={200}
               value={firstName}
+              aria-invalid={!firstName.trim()}
+              aria-describedby={!firstName.trim() ? validationId : undefined}
               onChange={(event) => edit("first_name", event.target.value)}
             />
           </label>
@@ -96,16 +92,33 @@ function ProfileForm({ profile }: { profile: Profile }) {
               autoComplete="family-name"
               maxLength={200}
               value={lastName}
+              aria-invalid={!lastName.trim()}
+              aria-describedby={!lastName.trim() ? validationId : undefined}
               onChange={(event) => edit("last_name", event.target.value)}
             />
           </label>
         </div>
-        <button className="secondary" disabled={!changed}>
+        <button
+          type="submit"
+          className="secondary profile-save"
+          disabled={!valid || action.busy}
+          aria-busy={action.busy}
+        >
           {action.busy
             ? t("Saving…", "กำลังบันทึก…")
             : t("Save profile", "บันทึกโปรไฟล์")}
         </button>
       </fieldset>
+      <div role="status" aria-live="polite">
+        {!valid && (
+          <p className="error" id={validationId}>
+            {t(
+              "Please fill in both your first and last name.",
+              "กรุณากรอกข้อมูลให้ครบทั้งชื่อและนามสกุล",
+            )}
+          </p>
+        )}
+      </div>
       <Message code={action.error} />
       {saved && (
         <p role="status" className="success">

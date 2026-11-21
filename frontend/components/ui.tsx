@@ -108,16 +108,40 @@ const errors: Record<string, [string, string]> = {
     "ระบบค้นหาบาร์โค้ดไม่ว่าง ลองใหม่ภายหลัง",
   ],
   camera: [
-    "Couldn’t open the camera. Check permission or type the barcode.",
-    "เปิดกล้องไม่ได้ ตรวจสอบสิทธิ์หรือพิมพ์บาร์โค้ด",
+    "Camera unavailable. Check your camera and allow camera access in your browser.",
+    "ใช้กล้องไม่ได้ ตรวจสอบกล้องและอนุญาตให้เบราว์เซอร์เข้าถึงกล้อง",
   ],
-  barcode_frame_unavailable: [
-    "Couldn’t capture a camera image. Try again or type the barcode digits.",
-    "จับภาพจากกล้องไม่ได้ ลองใหม่หรือพิมพ์เลขบาร์โค้ด",
+  camera_https: [
+    "Open Fridgellio over HTTPS to use the camera.",
+    "เปิด Fridgellio ผ่าน HTTPS เพื่อใช้กล้อง",
+  ],
+  camera_frame_unavailable: [
+    "Couldn’t capture a photo. Try the camera again.",
+    "ถ่ายภาพไม่ได้ กรุณาลองเปิดกล้องอีกครั้ง",
   ],
   photo: [
     "Photo analysis is unavailable. Try again later or add the item manually.",
     "ยังวิเคราะห์รูปไม่ได้ ลองภายหลังหรือกรอกเอง",
+  ],
+  photo_unavailable: [
+    "Photo analysis is unavailable. Try again later or add the item manually.",
+    "ยังวิเคราะห์รูปไม่ได้ ลองภายหลังหรือกรอกเอง",
+  ],
+  photo_invalid_response: [
+    "The photo result could not be read. Try again or add the item manually.",
+    "อ่านผลจากรูปไม่ได้ ลองอีกครั้งหรือกรอกเอง",
+  ],
+  photo_rate_limited: [
+    "Photo analysis is busy. Try again shortly.",
+    "ระบบวิเคราะห์รูปไม่ว่าง ลองใหม่ภายหลัง",
+  ],
+  invalid_photo: [
+    "Choose a valid JPEG, PNG, or WebP photo.",
+    "เลือกภาพ JPEG, PNG หรือ WebP ที่ถูกต้อง",
+  ],
+  photo_dimensions: [
+    "Choose a photo no larger than 16 megapixels.",
+    "เลือกภาพที่มีขนาดไม่เกิน 16 เมกะพิกเซล",
   ],
   empty_photo: [
     "No groceries were detected. Try a different photo or add an item manually.",
@@ -131,6 +155,10 @@ const errors: Record<string, [string, string]> = {
     "No suitable menu was found. Try different ingredients or equipment.",
     "ไม่พบเมนูที่เหมาะสม ลองเปลี่ยนวัตถุดิบหรืออุปกรณ์",
   ],
+  menu_rate_limited: [
+    "Too many recipe requests. Try again shortly.",
+    "ขอเมนูถี่เกินไป กรุณาลองใหม่ในอีกสักครู่",
+  ],
   invalid_menu: [
     "The menu could not be validated. Try again.",
     "ตรวจสอบเมนูไม่สำเร็จ กรุณาลองอีกครั้ง",
@@ -142,6 +170,10 @@ const errors: Record<string, [string, string]> = {
   quantity: [
     "Enter a positive quantity with up to 12 whole and 6 decimal digits.",
     "กรอกจำนวนบวกที่มีเลขจำนวนเต็มไม่เกิน 12 หลักและทศนิยมไม่เกิน 6 หลัก",
+  ],
+  price: [
+    "Enter a price with up to 10 whole and 2 decimal digits.",
+    "กรอกราคาโดยมีจำนวนเต็มไม่เกิน 10 หลักและทศนิยมไม่เกิน 2 หลัก",
   ],
   whole: [
     "Enter a whole number for individual items.",

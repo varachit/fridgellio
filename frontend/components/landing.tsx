@@ -8,9 +8,11 @@ import { Illustration } from "./illustration";
 export function PublicHeader({
   changeLanguage,
   signIn = false,
+  actions,
 }: {
   changeLanguage: () => void;
   signIn?: boolean;
+  actions?: React.ReactNode;
 }) {
   const { t } = useText();
   return (
@@ -20,6 +22,7 @@ export function PublicHeader({
       </Link>
       <div className="mast-actions">
         <LanguageButton change={changeLanguage} />
+        {actions}
         {signIn && (
           <Link href="/sign-in" className="secondary">
             {t("Sign in", "เข้าสู่ระบบ")}

@@ -16,6 +16,7 @@ def test_schema_and_auth():
         assert "security" not in spec["paths"]["/api/auth/login"]["post"]
         assert "security" not in spec["paths"]["/api/auth/register"]["post"]
         assert "501" in spec["paths"]["/api/menus"]["post"]["responses"]
+        assert "501" not in spec["paths"]["/api/photos/analyze"]["post"]["responses"]
         assert (
             "multipart/form-data"
             in spec["paths"]["/api/photos/analyze"]["post"]["requestBody"]["content"]

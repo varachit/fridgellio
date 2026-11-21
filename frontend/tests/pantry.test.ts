@@ -4,11 +4,46 @@ import {
   localDay,
   validDate,
   quantityError,
+  priceError,
   packageMeasurement,
   eligibleEntries,
   displayName,
+  expiredEntries,
   type Stock,
 } from "../lib/pantry.ts";
+
+test("expiry alerts count positive stock entries strictly before the local day", () => {
+  const base: Stock = {
+    id: "1",
+    name: "Spinach",
+    name_en: null,
+    name_th: "ผักโขม",
+    location: "fridge",
+    unit: "g",
+    quantity: "100",
+    price: null,
+    expiry_date: "2026-11-20",
+    expiry_status: "due_today",
+  };
+  const stock: Stock[] = [
+    base,
+    { ...base, id: "2", expiry_date: "2026-11-19" },
+    { ...base, id: "3", expiry_date: "2026-11-21" },
+    { ...base, id: "4", expiry_date: "2026-11-22" },
+    { ...base, id: "5", expiry_date: null },
+    { ...base, id: "6", quantity: "0" },
+  ];
+  assert.deepEqual(
+    expiredEntries(stock, "2026-11-21").map((item) => item.id),
+    ["2", "1"],
+  );
+  assert.deepEqual(
+    expiredEntries(stock, "2026-11-22").map((item) => item.id),
+    ["2", "1", "3"],
+  );
+  assert.equal(stock[0], base, "Sorting alerts does not reorder the inventory");
+  assert.deepEqual(expiredEntries([], "2026-11-21"), []);
+});
 
 test("quantities preserve database precision and whole-item rules", () => {
   assert.equal(quantityError("1.5", "each"), "whole");
@@ -28,6 +63,15 @@ test("quantities preserve database precision and whole-item rules", () => {
     quantityError("999999999999.999999", "g", "999999999999.999998"),
     "insufficient_stock",
   );
+});
+
+test("prices accept optional Thai baht amounts with two decimals", () => {
+  assert.equal(priceError(""), null);
+  assert.equal(priceError("0"), null);
+  assert.equal(priceError("42.50"), null);
+  assert.equal(priceError("-1"), "price");
+  assert.equal(priceError("12.345"), "price");
+  assert.equal(priceError("10000000000.00"), "price");
 });
 test("barcode package measurements prefill valid stock quantities and units", () => {
   assert.deepEqual(packageMeasurement(170, " G "), {
@@ -78,6 +122,7 @@ test("menu eligibility includes undated and due-today stock and compares both la
     location: "pantry",
     unit: "g",
     quantity: "100",
+    price: null,
     expiry_date: null,
     expiry_status: "no_date",
   };
@@ -95,11 +140,7 @@ test("menu eligibility includes undated and due-today stock and compares both la
     { ...base, id: "4", quantity: "0" },
   ];
   for (const name of [" GROUND  NUT ", " ถั่วลิสง "]) {
-    const { fresh, eligible } = eligibleEntries(
-      stock,
-      [name],
-      "2026-06-10",
-    );
+    const { fresh, eligible } = eligibleEntries(stock, [name], "2026-06-10");
     assert.equal(fresh.length, 2);
     assert.deepEqual(
       eligible.map((s) => s.id),

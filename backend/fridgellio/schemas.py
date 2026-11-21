@@ -41,6 +41,11 @@ Quantity = Annotated[
     Field(gt=0, max_digits=18, decimal_places=6),
     BeforeValidator(decimal_input, json_schema_input_type=str),
 ]
+Price = Annotated[
+    Decimal,
+    Field(ge=0, max_digits=12, decimal_places=2),
+    BeforeValidator(decimal_input, json_schema_input_type=str),
+]
 CalendarDate = Annotated[date, BeforeValidator(calendar_date, json_schema_input_type=str)]
 
 
@@ -76,6 +81,7 @@ class StockCreate(InputModel):
     name_en: Name | None = None
     name_th: Name | None = None
     quantity: Quantity
+    price: Price | None = None
     unit: Unit
     location: Location
     expiry_date: CalendarDate | None = None
@@ -92,6 +98,7 @@ class StockPatch(InputModel):
     name_en: Name | None = None
     name_th: Name | None = None
     quantity: Quantity | None = None
+    price: Price | None = None
     unit: Unit | None = None
     location: Location | None = None
     expiry_date: CalendarDate | None = None
@@ -110,6 +117,7 @@ class StockView(OutputModel):
     name_en: str | None
     name_th: str | None
     quantity: Decimal
+    price: Decimal | None
     unit: Unit
     location: Location
     expiry_date: date | None
@@ -118,6 +126,10 @@ class StockView(OutputModel):
     @field_serializer("quantity", when_used="json")
     def serialize_quantity(self, quantity: Decimal) -> str:
         return format(quantity.normalize(), "f")
+
+    @field_serializer("price", when_used="json")
+    def serialize_price(self, price: Decimal | None) -> str | None:
+        return format(price, ".2f") if price is not None else None
 
 
 class EventCreate(InputModel):
@@ -242,9 +254,21 @@ class LocalizedText(BaseModel):
 
 class PhotoSuggestion(BaseModel):
     name: LocalizedText
-    quantity: Decimal | None
+    quantity: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=6)
     unit: Unit | None
     expiry_date: date | None
+
+    @model_validator(mode="after")
+    def validate_measurement(self):
+        if (self.quantity is None) != (self.unit is None):
+            raise ValueError("Quantity and unit must be provided together")
+        if (
+            self.quantity is not None
+            and self.unit is not None
+            and not count_is_valid(self.unit, self.quantity)
+        ):
+            raise ValueError("Quantity must be a whole number for each")
+        return self
 
 
 class PhotoAnalysis(BaseModel):

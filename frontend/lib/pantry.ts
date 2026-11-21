@@ -18,6 +18,7 @@ export type Stock = Named & {
   name_en: string | null;
   name_th: string | null;
   quantity: string;
+  price: string | null;
   unit: Unit;
   location: Location;
   expiry_date: string | null;
@@ -57,6 +58,18 @@ export const localDay = (day = new Date()) =>
 export function displayName(item: Stock, lang: Language) {
   return item[lang === "th" ? "name_th" : "name_en"] || item.name;
 }
+export function expiredEntries(stock: Stock[], day: string) {
+  return stock
+    .filter(
+      (item) =>
+        Number(item.quantity) > 0 && item.expiry_date && item.expiry_date < day,
+    )
+    .sort(
+      (a, b) =>
+        a.expiry_date!.localeCompare(b.expiry_date!) ||
+        a.id.localeCompare(b.id),
+    );
+}
 export function validDate(day: string) {
   if (!day) return true;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day.startsWith("0000")) return false;
@@ -75,6 +88,17 @@ export function quantityError(raw: string, unit: Unit, maximum?: string) {
   if (unit === "each" && micros(raw) % 1000000n !== 0n) return "whole";
   if (maximum && micros(raw) > micros(maximum)) return "insufficient_stock";
   return null;
+}
+
+export function priceError(raw: string) {
+  return raw && !/^\d{1,10}(\.\d{1,2})?$/.test(raw) ? "price" : null;
+}
+
+export function formatPrice(value: string, lang: Language) {
+  return new Intl.NumberFormat(lang === "th" ? "th-TH" : "en-TH", {
+    style: "currency",
+    currency: "THB",
+  }).format(Number(value));
 }
 
 const packageUnitConversions = new Map<string, readonly [Unit, number]>([

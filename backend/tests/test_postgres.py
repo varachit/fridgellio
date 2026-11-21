@@ -117,7 +117,14 @@ def household_accounts(client):
 
 
 def add_stock(
-    client, member, name="Spinach", quantity="100", expiry_date=None, *, location="fridge"
+    client,
+    member,
+    name="Spinach",
+    quantity="100",
+    expiry_date=None,
+    *,
+    location="fridge",
+    price=None,
 ):
     result = client.post(
         "/api/inventory",
@@ -125,6 +132,7 @@ def add_stock(
         json={
             "name": name,
             "quantity": quantity,
+            "price": price,
             "unit": "g",
             "location": location,
             "expiry_date": expiry_date,
@@ -291,7 +299,7 @@ def test_concurrent_deduction_and_retry(client, household_accounts):
         client.post("/api/household/join", headers=member, json={"token": invite}).status_code
         == 201
     )
-    entry = add_stock(client, owner)
+    entry = add_stock(client, owner, price="40.00")
     path = f"/api/inventory/{entry}/events"
     payload = {"kind": "used", "quantity": "75"}
 
@@ -306,6 +314,7 @@ def test_concurrent_deduction_and_retry(client, household_accounts):
     replay = deduct(winning_member)
     assert replay.status_code == 200
     assert replay.json()["entry"]["quantity"] == "25"
+    assert replay.json()["entry"]["price"] == "10.00"
     events = client.get(path, headers=member).json()
     assert client.get(path, headers=owner).json() == events
     assert len(events) == 2
@@ -422,11 +431,19 @@ def test_session_lifecycle_and_expiration(client, database):
     assert client.post("/api/auth/logout", headers=first).status_code == 204
     assert client.get("/api/auth/me", headers=first).status_code == 401
     assert client.get("/api/auth/me", headers=second).json() == account
-    for path in ("/api/menus", "/api/photos/analyze"):
-        response = client.post(path, headers=second)
-        assert response.status_code == 501
-        assert response.json()["code"] == "ai_not_implemented"
-        assert response.json()["request_id"] == response.headers["X-Request-ID"]
+    response = client.post("/api/menus", headers=second)
+    assert response.status_code == 501
+    assert response.json()["code"] == "ai_not_implemented"
+    assert response.json()["request_id"] == response.headers["X-Request-ID"]
+
+    response = client.post(
+        "/api/photos/analyze",
+        headers=second,
+        files={"photo": ("grocery.jpg", b"not needed without OpenAI", "image/jpeg")},
+    )
+    assert response.status_code == 503
+    assert response.json()["code"] == "photo_unavailable"
+    assert response.json()["request_id"] == response.headers["X-Request-ID"]
 
     engine = create_engine(database[0], hide_parameters=True)
     try:
@@ -551,7 +568,11 @@ def test_saved_menus_are_private_and_bilingual(client, database):
     assert client.get("/api/menus").status_code == 401
 
 
-def test_recommendation_preview_resolves_settings_and_filters_stock(client, household_accounts):
+def test_recommendation_preview_resolves_settings_and_filters_stock(
+    client, household_accounts, monkeypatch
+):
+    from fridgellio import recommendations
+
     owner, member, outsider = household_accounts
     route = "/api/menus/recommendations"
     today = {"today": "2026-06-10"}
@@ -645,3 +666,30 @@ def test_recommendation_preview_resolves_settings_and_filters_stock(client, hous
         {"dietary_styles": ["  "]},
     ):
         assert client.post(route, headers=owner, json=invalid).status_code == 422
+
+    async def suggest(_, preview):
+        reference = next(
+            index for index, item in enumerate(preview.ingredients) if item.unit == "g"
+        )
+        return recommendations.RecipeSuggestions.model_validate(
+            {
+                "recipes": [
+                    {
+                        "name": {"en": "Cooked spinach", "th": "ผักโขมปรุงสุก"},
+                        "ingredients": [{"reference": reference, "quantity": "75"}],
+                        "equipment": ["Stove"],
+                        "steps": [{"en": "Cook the spinach.", "th": "ปรุงผักโขมให้สุก"}],
+                        "minutes": 10,
+                        "difficulty": "easy",
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(client.app.state, "openai_client", object())
+    monkeypatch.setattr(recommendations, "generate_suggestions", suggest)
+    generated = client.post(route, json={**today, "generate": True}, headers=owner)
+    assert generated.status_code == 200, generated.json()
+    assert generated.json()["status"] == "generated"
+    assert len(generated.json()["recipes"]) == 1
+    assert generated.json()["recipes"][0]["ingredients"][0]["quantity"] == "75"
