@@ -566,6 +566,88 @@ test("equipment cards retain earlier names and recover from a failed save", asyn
     { id: expect.any(String), name: "Oven" },
   ]);
 });
+test("camera barcode reading fills the code before explicit lookup", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const frame = document.createElement("canvas");
+      frame.width = 320;
+      frame.height = 240;
+      const context = frame.getContext("2d")!;
+      const stream = frame.captureStream(10);
+      const track = stream.getVideoTracks()[0];
+      context.fillStyle = "white";
+      const timer = setInterval(() => {
+        if (track.readyState === "ended") clearInterval(timer);
+        else context.fillRect(0, 0, frame.width, frame.height);
+      }, 100);
+      return stream;
+    };
+  });
+  await register(page, "camera" + suffix());
+  await page
+    .getByRole("button", { name: "Create household", exact: true })
+    .click();
+
+  const digits = "012345678905";
+  let reads = 0;
+  let lookups = 0;
+  await page.route("**/api/barcodes/decode", (route) => {
+    const request = route.request();
+    expect(request.method()).toBe("POST");
+    expect(request.headers()["content-type"]).toContain("multipart/form-data");
+    expect(request.postData()).toContain(
+      'name="photo"; filename="barcode.jpg"',
+    );
+    reads += 1;
+    if (reads === 1)
+      return route.fulfill({
+        status: 404,
+        json: { code: "barcode_not_found" },
+      });
+    return route.fulfill({ json: digits });
+  });
+  await page.route("**/api/barcodes/" + digits + "?*", (route) => {
+    expect(route.request().method()).toBe("GET");
+    expect(new URL(route.request().url()).searchParams.get("language")).toBe(
+      "en",
+    );
+    lookups += 1;
+    return route.fulfill({
+      headers: { "X-Barcode-Source": "https://example.com/rice" },
+      json: { name: "Rice", brands: "Example", Quantity: 500, Unit: "g" },
+    });
+  });
+
+  await page.getByRole("button", { name: "Add groceries" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Barcode", exact: true }).click();
+  await dialog.getByRole("button", { name: "Scan barcode" }).click();
+  const read = dialog.getByRole("button", { name: "Read barcode" });
+  await expect(read).toBeEnabled();
+  expect(reads).toBe(0);
+
+  await read.click();
+  await expect(dialog.getByRole("alert")).toContainText("No barcode found");
+  await read.click();
+  await expect(dialog.getByLabel("Barcode digits")).toHaveValue(digits);
+  await expect(dialog.getByRole("button", { name: "Stop camera" })).toHaveCount(
+    0,
+  );
+  expect(reads).toBe(2);
+  expect(lookups).toBe(0);
+
+  await dialog.getByRole("button", { name: "Look up product" }).click();
+  await expect(dialog.getByLabel("Item name", { exact: true })).toHaveValue(
+    "Rice",
+  );
+  await expect(
+    dialog.getByRole("link", { name: "Product source" }),
+  ).toHaveAttribute("href", "https://example.com/rice");
+  expect(lookups).toBe(1);
+});
+
 test("barcode review, availability errors, edit and removal", async ({
   page,
 }) => {
@@ -592,7 +674,8 @@ test("barcode review, availability errors, edit and removal", async ({
         name_en: "Rice",
         name_th: "ข้าว",
         brands: "Example",
-        package_size: "500 g",
+        Quantity: 500,
+        Unit: "g",
       },
     }),
   );
