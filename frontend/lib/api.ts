@@ -14,7 +14,11 @@ export async function api<T>(
   path: string,
   method = "GET",
   body?: unknown,
-  options: { key?: string; signal?: AbortSignal } = {},
+  options: {
+    key?: string;
+    signal?: AbortSignal;
+    onHeaders?: (headers: Headers) => void;
+  } = {},
 ): Promise<T> {
   const headers = new Headers();
   let payload: BodyInit | undefined;
@@ -38,6 +42,7 @@ export async function api<T>(
     }
     throw new ApiError(error.code || "service_unavailable");
   }
+  options.onHeaders?.(response.headers);
   return response.status === 204 ? (undefined as T) : await response.json();
 }
 export async function allPages<T extends { id: string }>(
