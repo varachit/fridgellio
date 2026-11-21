@@ -254,7 +254,6 @@ export function StockEditor({
                 found={(digits) => {
                   setScan(false);
                   setCode(digits);
-                  lookup(digits);
                 }}
                 failed={() => {
                   setScan(false);
