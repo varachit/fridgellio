@@ -81,11 +81,14 @@ class HouseholdMembership(Base):
 
 class HouseholdInvitation(Base):
     __tablename__ = "household_invitations"
+    __table_args__ = (UniqueConstraint("id", name="uq_household_invitations_id"),)
 
     token_digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    id: Mapped[str] = mapped_column(String(64))
     household_id: Mapped[UUID] = mapped_column(ForeignKey("households.id"), index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AvoidedFood(Base):
@@ -127,7 +130,7 @@ class InventoryEvent(Base):
     __tablename__ = "inventory_events"
     __table_args__ = (
         CheckConstraint("quantity > 0 AND quantity <> 'NaN'::numeric", name="ck_event_quantity"),
-        CheckConstraint("kind IN ('used', 'discarded')", name="ck_event_kind"),
+        CheckConstraint("kind IN ('added', 'used', 'discarded')", name="ck_event_kind"),
         CheckConstraint("unit IN ('each', 'g', 'kg', 'ml', 'l')", name="ck_event_unit"),
         CheckConstraint("unit <> 'each' OR quantity = trunc(quantity)", name="ck_event_count"),
         UniqueConstraint(

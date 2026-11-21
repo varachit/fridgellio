@@ -4,14 +4,14 @@ Fridgellio helps households track pantry items and groceries together and decide
 
 ## Who it serves
 
-The first release is designed for household members who shop and cook. They share one pantry where they can check what is already at home, see which groceries are due soon, and record what they used or discarded. Each member signs in to Fridgellio with their own username and password. Members can add their first and last names at registration. The pantry displays their name or falls back to their username. Profile pictures are read-only.
+The first release is designed for household members who shop and cook. They share one pantry where they can check what is already at home, see which groceries are due soon, and record what they used or discarded. Registration requires a first name and last name. Each member signs in to Fridgellio with their own username and password. Members can edit their names under **Settings → Profile**, where both fields are required. The sidebar uses the username for older accounts that have no saved name. Profile pictures are read-only.
 
 ## First-release experience
 
-1. Add groceries manually, take a photo for AI suggestions, or scan a barcode to look up a product in Open Food Facts. Review the name, quantity, unit, and storage location before saving. Add an expiry date when available.
+1. Add groceries manually, take a photo for AI suggestions, or scan a barcode to look up a product in Open Food Facts. Review the name, quantity, unit, and storage location before saving. Add an expiry date when available. Everyone in the household shares inventory across the pantry, fridge, freezer, and other storage locations.
 2. Open **Use soon** to see food dated within the next three days, with the closest dates first. Past-date entries appear in a separate list.
 3. In **Settings**, select a card for each piece of cooking equipment your household has. Select it again to remove it. Add any ingredients you want to exclude under **Foods to avoid**. In **Meal ideas**, request a menu using the shared pantry, selected equipment, and your personal food preferences. The menu shows what to make, how much to use, which equipment is needed, and how to cook it.
-4. Record what you used directly in inventory after cooking.
+4. Record what you used directly in inventory after cooking. Open **History** or an item's **Entry history** to see who added, used, or discarded stock and in what quantity. Open **Household** to see who shares your pantry. The owner can create and remove unused invitation codes such as `K7RM-3X9D`.
 
 Use the app in English or Thai. Fridgellio saves both language versions of AI-generated grocery names and menus so switching languages can display the saved translation.
 
@@ -38,7 +38,7 @@ uv run alembic upgrade head
 uv run uvicorn fridgellio.main:create_app --factory --reload --no-access-log
 ```
 
-Open Swagger UI at `http://127.0.0.1:8000/docs`. Run `POST /api/auth/register` with a username and password, or `POST /api/auth/login` for an existing account. Copy the returned `token` into Swagger’s **Authorize** field to call protected routes. The household creator can issue single-use invites that expire after 24 hours. The photo and menu routes return `501` until AI integration is added.
+Open Swagger UI at `http://127.0.0.1:8000/docs`. Register with `POST /api/auth/register` and supply `username`, `password`, `first_name`, and `last_name`. Sign in to an existing account with `POST /api/auth/login`. Copy the returned `token` into Swagger’s **Authorize** field to call protected routes. The household owner can issue single-use invites that expire after 24 hours and revoke them before use. The photo and menu routes return `501` until AI integration is added.
 
 See [Authentication operations](docs/backend-stack.md#authentication-operations) for password resets, expired session cleanup, and provisioning local credentials for existing accounts.
 

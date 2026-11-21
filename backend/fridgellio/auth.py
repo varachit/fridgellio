@@ -39,11 +39,14 @@ class LoginInput(InputModel):
         return value.lower()
 
 
-class RegisterInput(LoginInput):
-    first_name: Name | None = None
-    last_name: Name | None = None
+class NewPasswordInput(LoginInput):
+    password: Annotated[SecretStr, Field(min_length=8, max_length=128)]
+
+
+class RegisterInput(NewPasswordInput):
+    first_name: Name
+    last_name: Name
     language: Language = "en"
-    password: Annotated[SecretStr, Field(min_length=15, max_length=128)]
 
 
 class AccountView(OutputModel):

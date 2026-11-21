@@ -9,13 +9,13 @@ from sqlalchemy import create_engine, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .auth import RegisterInput, password_hasher
+from .auth import NewPasswordInput, password_hasher
 from .config import Settings
 from .models import Account, AccountCredential, AccountSession, AuthRateLimit
 
 
 def set_password(
-    session: Session, credentials: RegisterInput, legacy_account_id: UUID | None
+    session: Session, credentials: NewPasswordInput, legacy_account_id: UUID | None
 ) -> None:
     password_hash = password_hasher.hash(credentials.password.get_secret_value())
     if legacy_account_id is None:
@@ -75,9 +75,9 @@ def main() -> None:
         if password != getpass("Confirm password: "):
             parser.error("The passwords do not match.")
         try:
-            credentials = RegisterInput(username=args.username, password=password)
+            credentials = NewPasswordInput(username=args.username, password=password)
         except ValidationError:
-            parser.error("Enter a valid username and a password with 15 to 128 characters.")
+            parser.error("Enter a valid username and a password with 8 to 128 characters.")
         try:
             with Session(engine) as session, session.begin():
                 set_password(session, credentials, args.legacy_account_id)
