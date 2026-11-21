@@ -1179,12 +1179,6 @@ details label {
 .inline-fields > button:not(.wide) {
   align-self: flex-end;
 }
-.meal-layout {
-  display: grid;
-  align-items: start;
-  gap: 1.3rem;
-  max-width: 74rem;
-}
 .meal-preview {
   background: #f3f7ee;
 }
@@ -1385,17 +1379,87 @@ details label {
   flex: none;
   font-variant-numeric: tabular-nums;
 }
-@media (min-width: 68rem) {
-  .meal-layout {
-    grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
-  }
-  .meal-preview {
-    position: sticky;
-    top: 1.5rem;
-  }
-  .saved-menus {
-    grid-column: 1 / -1;
-  }
+.recipe-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+  margin-block: 1rem;
+  overflow-wrap: anywhere;
+}
+.recipe-card {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: var(--surface);
+}
+.recipe-card:only-child {
+  max-width: 28rem;
+}
+.recipe-card .recipe-illustration {
+  border-radius: 0.8rem 0.8rem 0 0;
+  margin: 0;
+}
+.recipe-card-body {
+  padding: 1rem;
+}
+.recipe-card-body p {
+  margin-top: 0.35rem;
+  color: var(--muted);
+}
+.recipe-open {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: start;
+  font: inherit;
+  letter-spacing: inherit;
+}
+.recipe-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0.85rem;
+}
+.recipe-card:hover,
+.recipe-card:focus-within {
+  border-color: var(--green);
+}
+.recipe-card:hover .recipe-open {
+  color: var(--green-dark);
+  text-decoration: underline;
+}
+.recipe-open:focus-visible {
+  outline: none;
+}
+.recipe-open:focus-visible::after {
+  outline: 3px solid var(--green);
+  outline-offset: 3px;
+}
+.recipe-detail {
+  overflow-wrap: anywhere;
+}
+.recipe-detail h3 {
+  margin-block: 1rem 0.35rem;
+}
+.recipe-detail p + p {
+  margin-top: 0.35rem;
+}
+.recipe-detail :is(ul, ol) {
+  margin: 0;
+  padding-inline-start: 1.5rem;
+}
+.recipe-detail li + li {
+  margin-top: 0.4rem;
+}
+.recipe-cook {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+.recipe-divider {
+  border: 0;
+  border-top: 1px solid var(--control);
+  margin-block: 1.5rem;
 }
 .dish {
   border-top: 1px solid var(--line);

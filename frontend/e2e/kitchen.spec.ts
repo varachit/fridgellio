@@ -1185,6 +1185,21 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
     "database is unavailable",
   );
   let recipeRequests = 0;
+  const description = { en: "Soft eggs served warm.", th: "ไข่เนื้อนุ่มเสิร์ฟอุ่น ๆ" };
+  const secondDish = {
+    ...dish,
+    id: crypto.randomUUID(),
+    name: { en: "Scrambled eggs", th: "ไข่คน" },
+    ingredients: [{ name: eggs, quantity: "2", unit: "each" }],
+    description: {
+      en: "Soft curds of gently scrambled eggs.",
+      th: "ไข่คนเนื้อเนียนนุ่ม",
+    },
+    steps: [{ en: "Stir the eggs as they cook.", th: "คนไข่จนสุก" }],
+    equipment: ["Microwave"],
+    minutes: 5,
+    difficulty: "easy",
+  };
   await page.route("**/api/menus/recommendations", async (route) => {
     recipeRequests++;
     expect(route.request().postDataJSON().generate).toBe(true);
@@ -1197,12 +1212,15 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
         recipes: [
           {
             ...dish,
+            ingredients: [{ name: eggs, quantity: "2", unit: "each" }],
+            description,
             equipment: ["Microwave"],
             minutes: 10,
             difficulty: "easy",
             estimated_price: "10.00",
             price_coverage: "full",
           },
+          secondDish,
         ],
       },
     });
@@ -1211,7 +1229,7 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
   await page.route("**/api/menus/recommendations/image", async (route) => {
     imageRequests++;
     expect(route.request().postDataJSON()).toEqual({
-      name: dish.name.en,
+      name: expect.stringMatching(/^(Eggs|Scrambled eggs)$/),
       ingredients: [eggs.en],
     });
     const image = await readFile("public/illustrations/dashboard.webp");
@@ -1237,26 +1255,95 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
     },
     ingredients: [{ name_th: eggs.th, quantity: "6", unit: "each" }],
   });
-  await expect(
-    page.getByRole("region", { name: "Recommended recipes" }),
-  ).toContainText("3 servings");
-  await expect(
-    page.getByRole("region", { name: "Recommended recipes" }),
-  ).toContainText("Estimated cost ฿10.00");
-  await expect(
-    page
-      .getByRole("region", { name: "Recommended recipes" })
-      .getByText(dish.steps[0].en),
-  ).toBeVisible();
+  const planner = page.getByRole("region", { name: "Plan this meal" });
+  const recipes = page.getByRole("region", { name: "Recommended recipes" });
+  const cards = recipes.getByRole("article");
+  await expect(recipes).toContainText("3 servings");
+  await expect(cards).toHaveCount(2);
+  await expect(recipes.getByRole("separator")).toBeVisible();
+  await expect(cards.first()).toContainText(description.en);
+  await expect(cards.last()).toContainText(secondDish.description.en);
+  await expect(recipes.getByText(dish.steps[0].en)).toHaveCount(0);
+  const plannerBox = (await planner.boundingBox())!;
+  const recipesBox = (await recipes.boundingBox())!;
+  expect(recipesBox.width).toBe(plannerBox.width);
+  expect(recipesBox.y).toBeGreaterThanOrEqual(plannerBox.y + plannerBox.height);
+  expect((await cards.first().boundingBox())!.y).toBe(
+    (await cards.last().boundingBox())!.y,
+  );
   await expect(
     page.getByRole("img", { name: `AI illustration of ${dish.name.en}` }),
   ).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 1100 });
+  await recipes.evaluate((section) =>
+    section.scrollIntoView({ block: "center" }),
+  );
+  await recipes.screenshot({
+    path: info.outputPath("recipe-cards-desktop.png"),
+  });
+  const firstButton = cards
+    .first()
+    .getByRole("button", { name: dish.name.en, exact: true });
+  await firstButton.press("Enter");
+  const firstRecipe = page.getByRole("dialog", {
+    name: dish.name.en,
+    exact: true,
+  });
+  await expect(firstRecipe).toContainText(dish.steps[0].en);
+  await expect(firstRecipe).toContainText(
+    /Estimated cost\s+(?:฿|THB)\s*10\.00/,
+  );
+  await expect(firstRecipe).toContainText("3 servings");
+  await expect(firstRecipe).toContainText("10 min");
+  await expect(firstRecipe).toContainText("Easy");
+  await expect(firstRecipe).toContainText("2 each");
+  await expect(firstRecipe).toContainText("Microwave");
+  const makeMeal = firstRecipe.getByRole("button", {
+    name: "I made this menu",
+  });
+  await page.route(
+    "**/api/menus/cooked",
+    async (route) => {
+      const response = await route.fetch();
+      expect(response.status()).toBe(204);
+      await route.abort("failed");
+    },
+    { times: 1 },
+  );
+  await makeMeal.click();
+  await expect(firstRecipe.getByRole("alert")).toBeVisible();
+  await makeMeal.click();
+  await expect(firstRecipe.getByRole("status")).toContainText(
+    "Ingredients deducted from inventory",
+  );
+  await expect(makeMeal).toBeDisabled();
+  const stockAfterCooking = await page.request.get("/api/inventory");
+  expect(await stockAfterCooking.json()).toMatchObject([
+    { quantity: "4", unit: "each", price: "20.00" },
+  ]);
+  const usage = await (await page.request.get("/api/inventory-history")).json();
+  expect(
+    usage.filter((event: { kind: string }) => event.kind === "used"),
+  ).toMatchObject([{ quantity: "2", unit: "each" }]);
+  await firstRecipe.press("Escape");
+  await expect(firstButton).toBeFocused();
+  await cards.last().click({ position: { x: 30, y: 30 } });
+  const secondRecipe = page.getByRole("dialog", { name: secondDish.name.en });
+  await expect(secondRecipe).toContainText(secondDish.steps[0].en);
+  await expect(
+    secondRecipe.getByRole("button", { name: "I made this menu" }),
+  ).toBeEnabled();
+  await expect(secondRecipe).not.toContainText(dish.steps[0].en);
+  await secondRecipe.screenshot({
+    path: info.outputPath("recipe-detail-desktop.png"),
+  });
+  await secondRecipe.getByRole("button", { name: "Close" }).click();
   await go(page, "Settings");
   await page.getByRole("combobox", { name: "Display language" }).click();
   await page.getByRole("option", { name: "ไทย", exact: true }).click();
   await go(page, "ไอเดียมื้ออาหาร");
   await expect(
-    page.getByRole("region", { name: "เมนูแนะนำ" }).getByText(dish.steps[0].th),
+    page.getByRole("region", { name: "เมนูแนะนำ" }).getByText(description.th),
   ).toBeVisible();
   await expect(page.getByRole("region", { name: "เมนูแนะนำ" })).toContainText(
     "ไมโครเวฟ",
@@ -1265,9 +1352,26 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
     page.getByRole("img", { name: `ภาพประกอบเมนู ${dish.name.th} สร้างโดย AI` }),
   ).toBeVisible();
   expect(recipeRequests).toBe(1);
-  expect(imageRequests).toBe(1);
+  expect(imageRequests).toBe(2);
   await expect(page.getByLabel("จำนวนที่เสิร์ฟ", { exact: true })).toHaveText("2");
   await page.setViewportSize({ width: 390, height: 844 });
+  const mobileCards = page
+    .getByRole("region", { name: "เมนูแนะนำ" })
+    .getByRole("article");
+  const firstBox = (await mobileCards.first().boundingBox())!;
+  expect((await mobileCards.last().boundingBox())!.y).toBeGreaterThanOrEqual(
+    firstBox.y + firstBox.height,
+  );
+  await mobileCards
+    .first()
+    .screenshot({ path: info.outputPath("recipe-card-mobile.png") });
+  await mobileCards.first().getByRole("button", { name: dish.name.th }).click();
+  const mobileRecipe = page.getByRole("dialog", { name: dish.name.th });
+  await expect(mobileRecipe).toContainText(dish.steps[0].th);
+  await expect(
+    mobileRecipe.getByRole("button", { name: "ฉันทำเมนูนี้แล้ว" }),
+  ).toBeDisabled();
+  await mobileRecipe.getByRole("button", { name: "ปิด" }).click();
   await page.evaluate(() => window.scrollTo(0, 0));
   expect(
     await page.evaluate(

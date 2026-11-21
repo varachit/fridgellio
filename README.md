@@ -10,13 +10,13 @@ Create an account and start a household, or join one with an invitation code. Ev
 | --- | --- |
 | **Inventory** | Add groceries by hand, scan a barcode or type its digits, or take or upload a photo for AI suggestions. Review the item before saving its quantity, unit, storage location, and optional expiry date and purchase price in Thai baht. Search and filter the pantry to see what you already have. |
 | **Use soon** | See items due today or within the next three days, sorted with the closest expiry first. Use the notification bell or the inventory alert to review past-date items. |
-| **Meal ideas** | Get up to five recipes from eligible pantry stock. Choose servings, cooking time, equipment, foods to avoid, and other preferences. Recipes include quantities, step-by-step instructions, and AI illustrations. The recipe appears while its illustration is generating. |
-| **Estimated cost** | See the estimated total ingredient cost for a recipe based on the quantities used and the prices saved in your pantry. If only some ingredients have prices, the card labels the estimate as partial. |
+| **Meal ideas** | Get up to five recipes from eligible pantry stock. Choose servings, cooking time, equipment, foods to avoid, and other preferences. Each recipe appears below **Plan this meal** with its name, a short description, and an AI illustration. Open a card to see ingredient quantities, equipment, and cooking steps, even while its illustration loads. |
+| **Estimated cost** | See the estimated total ingredient cost for a recipe based on the quantities used and the prices saved in your pantry. If only some ingredients have prices, the recipe details label the estimate as partial. |
 | **History** | Record how much you used or discarded from an inventory item. See changes to the shared pantry and who recorded them. |
 | **Statistics** | Compare groceries used with groceries discarded after expiry across the latest six calendar months. See the recorded value in Thai baht for groceries with saved prices. |
 | **Household and Settings** | Invite people to share the pantry, set household cooking equipment, and manage your personal foods to avoid, language, and profile. You can adjust equipment or exclusions for a single meal request. |
 
-**Try it first.** Add a few ingredients and give one an expiry date of today. Check **Use soon**, then open **Meal ideas** and choose **Generate menu**. After cooking, record the amount used in **Inventory** and check the entry in **History**.
+**Try it first.** Add a few ingredients and give one an expiry date of today. Check **Use soon**, then open **Meal ideas** and choose **Generate menu**. After cooking, open the recipe card and select **I made this menu**. Fridgellio deducts the listed quantities from the earliest-expiring stock first. If an ingredient runs short, add stock and retry. Check **History** to see the quantities used.
 
 ![Shared pantry showing inventory search, storage filters, and expiry alerts](docs/screenshots/pantry-inventory-desktop.png)
 

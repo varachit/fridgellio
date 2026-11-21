@@ -257,6 +257,22 @@ class LocalizedText(BaseModel):
     th: Name
 
 
+class IngredientAmount(InputModel):
+    name: LocalizedText
+    quantity: Quantity
+    unit: Unit
+
+    @model_validator(mode="after")
+    def validate_count(self):
+        if not count_is_valid(self.unit, self.quantity):
+            raise ValueError("Quantity must be a whole number for each")
+        return self
+
+    @field_serializer("quantity", when_used="json")
+    def serialize_quantity(self, value: Decimal) -> str:
+        return format(value.normalize(), "f")
+
+
 class PhotoSuggestion(BaseModel):
     name: LocalizedText
     quantity: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=6)

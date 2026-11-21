@@ -52,7 +52,7 @@ import { Inventory, HistoryView } from "./inventory";
 import { StockEditor } from "./stock-editor";
 import { HouseholdInvitations, HouseholdMembers } from "./household-members";
 import { SettingsView } from "./management";
-import type { RecommendationPreview } from "@/lib/meals";
+import { withRecipeIds, type RecommendationPreview } from "@/lib/meals";
 import { Meals } from "./meals";
 import { AccountMenu } from "./account-menu";
 import { ProfileSettings } from "./profile-settings";
@@ -290,7 +290,7 @@ function Workspace({
     const sync = () => {
       setPage(hashPage());
       setMealResult((result) =>
-        result?.status === "generated" ? result : null,
+        result?.status === "generated" ? withRecipeIds(result) : null,
       );
       menu.current?.close();
       setAdding(false);
@@ -347,6 +347,18 @@ function Workspace({
     void client.invalidateQueries({ queryKey: ["inventory"] });
     void client.invalidateQueries({ queryKey: historyQuery.queryKey });
     void client.invalidateQueries({ queryKey: ["statistics"] });
+  };
+  const markRecipeCooked = (id: string) => {
+    setMealResult(
+      (result) =>
+        result && {
+          ...result,
+          recipes: result.recipes.map((recipe) =>
+            recipe.id === id ? { ...recipe, cooked: true } : recipe,
+          ),
+        },
+    );
+    refreshStock();
   };
   const links = [
     { page: "pantry", icon: Archive, title: t("Inventory", "คลังอาหาร") },
@@ -561,7 +573,8 @@ function Workspace({
               page === "meals" ? (
                 <Meals
                   preview={mealResult}
-                  showPreview={setMealResult}
+                  showPreview={(result) => setMealResult(withRecipeIds(result))}
+                  onCooked={markRecipeCooked}
                   stock={stock.data}
                   day={day}
                   add={() => setAdding(true)}
