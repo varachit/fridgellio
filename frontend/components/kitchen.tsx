@@ -51,6 +51,7 @@ import { Inventory, HistoryView } from "./inventory";
 import { StockEditor } from "./stock-editor";
 import { HouseholdInvitations, HouseholdMembers } from "./household-members";
 import { SettingsView } from "./management";
+import type { RecommendationPreview } from "@/lib/meals";
 import { Meals } from "./meals";
 import { AccountMenu } from "./account-menu";
 import { ProfileSettings } from "./profile-settings";
@@ -238,6 +239,7 @@ function MemberKitchen({ account }: { account: Account }) {
     );
   return (
     <Workspace
+      key={household.data.id}
       account={account}
       household={household.data}
       logout={logout}
@@ -271,9 +273,11 @@ function Workspace({
   const menu = useRef<HTMLDialogElement>(null);
   const content = useRef<HTMLElement>(null);
   const [reviewExpired, setReviewExpired] = useState(false);
+  const [mealResult, setMealResult] = useState<RecommendationPreview | null>(null);
   useEffect(() => {
     const sync = () => {
       setPage(hashPage());
+      setMealResult((result) => (result?.status === "generated" ? result : null));
       menu.current?.close();
       setAdding(false);
       setNotice(false);
@@ -530,6 +534,8 @@ function Workspace({
             {stock.data ? (
               page === "meals" ? (
                 <Meals
+                  preview={mealResult}
+                  showPreview={setMealResult}
                   stock={stock.data}
                   day={day}
                   add={() => setAdding(true)}

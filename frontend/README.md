@@ -51,7 +51,7 @@ TanStack React Query manages household, preference, inventory, history, equipmen
 - **Use soon** groups entries due today through three days ahead and lists past-date groceries separately. The app sends the member’s local calendar date to FastAPI.
 - **History** shows who added, used, or discarded stock and retains those events after an entry is depleted or removed. A retry of the same deduction in the open form reuses its request key.
 - Take a grocery photo for OpenAI-powered bilingual item suggestions, or scan a barcode using the camera or type the digits. Review localized names and enter the actual quantity before saving. The browser loads the scanner when the camera is opened.
-- Meal ideas starts with two servings. Expand the diet, cuisine, or kitchen sections to customize the request. Generate submits to `POST /api/menus/recommendations` and shows a V1 preview of the selections and eligible stock. AI generation is deferred. Photo intake offers manual entry while AI analysis is unavailable. **Saved menus** displays any validated menus stored for the account.
+- Meal ideas starts with two servings. Expand the diet, cuisine, or kitchen sections to customize the request. Generate submits to `POST /api/menus/recommendations` and shows up to five recommendations, with a pantry preview when OpenAI is unconfigured. **Saved menus** displays any validated menus stored for the account.
 
 ## Verification
 

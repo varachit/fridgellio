@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import {
   expect,
   test,
@@ -972,7 +973,7 @@ async function checkCameraAccess(page: Page, info: TestInfo) {
   if (viewport) await page.setViewportSize(viewport);
 }
 
-test("reviews photo suggestions and previews a meal with personal overrides", async ({
+test("reviews photo suggestions and shows recipes with personal overrides", async ({
   page,
 }, info) => {
   await useTestCamera(page);
@@ -1134,13 +1135,44 @@ test("reviews photo suggestions and previews a meal with personal overrides", as
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "database is unavailable",
   );
+  let recipeRequests = 0;
+  await page.route("**/api/menus/recommendations", async (route) => {
+    recipeRequests++;
+    expect(route.request().postDataJSON().generate).toBe(true);
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      json: {
+        ...(await response.json()),
+        status: "generated",
+        recipes: [
+          {
+            ...dish,
+            equipment: ["Microwave"],
+            minutes: 10,
+            difficulty: "easy",
+          },
+        ],
+      },
+    });
+  });
+  let imageRequests = 0;
+  await page.route("**/api/menus/recommendations/image", async (route) => {
+    imageRequests++;
+    expect(route.request().postDataJSON()).toEqual({
+      name: dish.name.en,
+      ingredients: [eggs.en],
+    });
+    const image = await readFile("public/illustrations/dashboard.webp");
+    await route.fulfill({ json: { webp_base64: image.toString("base64") } });
+  });
   const result = page.waitForResponse((response) =>
     response.url().endsWith("/api/menus/recommendations"),
   );
   await generate.click();
   const preview = await (await result).json();
   expect(preview).toMatchObject({
-    status: "preview",
+    status: "generated",
     recipe_limit: 5,
     preferences: {
       servings: 3,
@@ -1155,17 +1187,31 @@ test("reviews photo suggestions and previews a meal with personal overrides", as
     ingredients: [{ name_th: eggs.th, quantity: "6", unit: "each" }],
   });
   await expect(
-    page.getByRole("region", { name: "Request preview" }),
+    page.getByRole("region", { name: "Recommended recipes" }),
   ).toContainText("3 servings");
-  await expect(page.getByText(dish.steps[0].en)).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Recommended recipes" })
+      .getByText(dish.steps[0].en),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: `AI illustration of ${dish.name.en}` }),
+  ).toBeVisible();
   await go(page, "Settings");
   await page.getByRole("combobox", { name: "Display language" }).click();
   await page.getByRole("option", { name: "ไทย", exact: true }).click();
   await go(page, "ไอเดียมื้ออาหาร");
-  await expect(page.getByText(dish.steps[0].th)).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "ตัวอย่างคำขอเมนู" }),
-  ).not.toContainText("ไมโครเวฟ");
+    page.getByRole("region", { name: "เมนูแนะนำ" }).getByText(dish.steps[0].th),
+  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "เมนูแนะนำ" })).toContainText(
+    "ไมโครเวฟ",
+  );
+  await expect(
+    page.getByRole("img", { name: `ภาพประกอบเมนู ${dish.name.th} สร้างโดย AI` }),
+  ).toBeVisible();
+  expect(recipeRequests).toBe(1);
+  expect(imageRequests).toBe(1);
   await expect(page.getByLabel("จำนวนที่เสิร์ฟ", { exact: true })).toHaveText("2");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
