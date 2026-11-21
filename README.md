@@ -13,6 +13,7 @@ Create an account and start a household, or join one with an invitation code. Ev
 | **Meal ideas** | Get up to five recipes from eligible pantry stock. Choose servings, cooking time, equipment, foods to avoid, and other preferences. Recipes include quantities, step-by-step instructions, and AI illustrations. The recipe appears while its illustration is generating. |
 | **Estimated cost** | See the estimated total ingredient cost for a recipe based on the quantities used and the prices saved in your pantry. If only some ingredients have prices, the card labels the estimate as partial. |
 | **History** | Record how much you used or discarded from an inventory item. See changes to the shared pantry and who recorded them. |
+| **Statistics** | Compare groceries used with groceries discarded after expiry across the latest six calendar months. See the recorded value in Thai baht for groceries with saved prices. |
 | **Household and Settings** | Invite people to share the pantry, set household cooking equipment, and manage your personal foods to avoid, language, and profile. You can adjust equipment or exclusions for a single meal request. |
 
 **Try it first.** Add a few ingredients and give one an expiry date of today. Check **Use soon**, then open **Meal ideas** and choose **Generate menu**. After cooking, record the amount used in **Inventory** and check the entry in **History**.
@@ -73,7 +74,7 @@ Uses all **150 g of mushrooms due today** and matches your preference for spicy 
 
 If a price needed for a total is missing, show **Price unknown** for that total.
 
-After these features, the roadmap includes monthly waste reports, rewards based on improvements against a household’s own baseline, receipt and whole-fridge photo scanning, and reminders outside the app.
+The roadmap also includes rewards based on improvements against a household’s own baseline, receipt and whole-fridge photo scanning, and reminders outside the app.
 
 ## Hackathon submission and declarations
 

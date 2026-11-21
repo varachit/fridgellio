@@ -142,14 +142,19 @@ class EventView(OutputModel):
     stock_id: UUID
     actor_account_id: UUID
     item_name: str
-    kind: Literal["added", "used", "discarded"]
+    kind: Literal["added", "used", "discarded", "expired"]
     quantity: Decimal
+    cost: Decimal | None
     unit: Unit
     created_at: datetime
 
     @field_serializer("quantity", when_used="json")
     def serialize_quantity(self, quantity: Decimal) -> str:
         return format(quantity.normalize(), "f")
+
+    @field_serializer("cost", when_used="json")
+    def serialize_cost(self, cost: Decimal | None) -> str | None:
+        return format(cost, ".2f") if cost is not None else None
 
 
 class DeductionView(BaseModel):
