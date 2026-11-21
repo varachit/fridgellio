@@ -34,6 +34,7 @@
 | `GET /api/inventory-history` | Read household usage and discard events, including entries that were depleted or removed. |
 | `POST /api/menus/recommendations` | Use `generate: true` to return up to five validated recipes with `status: generated`. Otherwise return a preview with the recipe limit, effective preferences, and ingredient quantities. An unconfigured OpenAI client returns a preview. Omit equipment or exclusions to use saved settings, or send an empty list to clear that setting for the request. |
 | `POST /api/menus/recommendations/image` | Generate one WebP illustration from the recipe name and ingredient names. Return `webp_base64`. Image requests are separate from recipe requests so the page can show recipes immediately. |
+| `POST /api/menus/cooked` | Send the selected recipe’s bilingual `name`, `ingredients` with their displayed quantities and units, and the local `today` date. Use its UUID as the `Idempotency-Key` header. Return `204` after recording usage or on a matching retry. Return `409` for insufficient eligible stock or a conflicting key. |
 | `GET /api/menus` | List the signed-in member’s saved bilingual menus, newest first. |
 | `GET /api/equipment`, `POST /api/equipment` | List or add equipment. |
 | `PATCH /api/equipment/{equipment_id}`, `DELETE /api/equipment/{equipment_id}` | Edit or remove owned equipment. |

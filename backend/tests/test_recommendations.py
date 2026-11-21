@@ -64,6 +64,7 @@ def test_recommendations_discard_invalid_candidates_and_cap_at_five():
         }
     )
     sample = {
+        "description": {"en": "A bowl of warm rice.", "th": "ข้าวอุ่นหนึ่งชาม"},
         "ingredients": [{"reference": 0, "quantity": "20"}],
         "equipment": ["Stove"],
         "steps": [{"en": "Warm the rice.", "th": "อุ่นข้าว"}],
@@ -130,6 +131,7 @@ def test_recommendations_estimate_weighted_grocery_costs():
             "recipes": [
                 {
                     "name": {"en": "Rice", "th": "ข้าว"},
+                    "description": {"en": "A bowl of plain rice.", "th": "ข้าวสวยหนึ่งชาม"},
                     "ingredients": [{"reference": 0, "quantity": "250"}],
                     "equipment": [],
                     "steps": [{"en": "Serve.", "th": "เสิร์ฟ"}],

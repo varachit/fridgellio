@@ -16,13 +16,19 @@ import {
 } from "@/lib/meals";
 import { MealForm } from "./meal-form";
 import { equipmentPresets } from "./equipment-picker";
-import { Busy, Message, Retry, useLabels, useText } from "./ui";
+import {
+  Busy,
+  Dialog,
+  Message,
+  Retry,
+  useAction,
+  useLabels,
+  useText,
+} from "./ui";
 
-function RecipeIllustration({
-  recipe,
-}: {
-  recipe: RecommendationPreview["recipes"][number];
-}) {
+type Recipe = RecommendationPreview["recipes"][number];
+
+function RecipeIllustration({ recipe }: { recipe: Recipe }) {
   const { lang, t } = useText();
   const name = recipe.name.en;
   const ingredients = [
@@ -40,6 +46,7 @@ function RecipeIllustration({
         { signal },
       ),
     retry: false,
+    retryOnMount: false,
     staleTime: Infinity,
     refetchOnMount: false,
   });
@@ -67,6 +74,137 @@ function RecipeIllustration({
         </>
       )}
     </div>
+  );
+}
+
+function RecipeCard({
+  recipe,
+  servings,
+  day,
+  onCooked,
+}: {
+  recipe: Recipe;
+  servings: number;
+  day: string;
+  onCooked: (id: string) => void;
+}) {
+  const { lang, t } = useText();
+  const labels = useLabels();
+  const [open, setOpen] = useState(false);
+  const action = useAction();
+  const name = recipe.name[lang];
+  const description =
+    recipe.description?.[lang] ??
+    recipe.ingredients.map((item) => item.name[lang]).join(", ");
+  function recordMeal() {
+    if (recipe.cooked) return;
+    void action.run(async () => {
+      await api(
+        "menus/cooked",
+        "POST",
+        {
+          name: recipe.name,
+          ingredients: recipe.ingredients.map(({ name, quantity, unit }) => ({
+            name,
+            quantity,
+            unit,
+          })),
+          today: day,
+        },
+        { key: recipe.id },
+      );
+      onCooked(recipe.id);
+    });
+  }
+  return (
+    <>
+      <article className="recipe-card">
+        <RecipeIllustration recipe={recipe} />
+        <div className="recipe-card-body">
+          <h3>
+            <button
+              type="button"
+              className="recipe-open"
+              aria-haspopup="dialog"
+              onClick={() => setOpen(true)}
+            >
+              {name}
+            </button>
+          </h3>
+          <p>{description}</p>
+        </div>
+      </article>
+      {open && (
+        <Dialog title={name} close={() => setOpen(false)} busy={action.busy}>
+          <div className="recipe-detail">
+            <RecipeIllustration recipe={recipe} />
+            <p>{description}</p>
+            <p className="muted">
+              {t(
+                `${servings} ${servings === 1 ? "serving" : "servings"}`,
+                `${servings} ที่`,
+              )}{" "}
+              · {t(`${recipe.minutes} min`, `${recipe.minutes} นาที`)} ·{" "}
+              {difficulties[recipe.difficulty][lang]}
+            </p>
+            {recipe.estimated_price != null && (
+              <p>
+                <strong>{t("Estimated cost", "ค่าใช้จ่ายโดยประมาณ")} </strong>
+                {formatPrice(recipe.estimated_price, lang)}
+                {recipe.price_coverage === "partial" &&
+                  t(
+                    " · based on groceries with prices",
+                    " · คำนวณจากวัตถุดิบที่มีราคา",
+                  )}
+              </p>
+            )}
+            <div className="recipe-cook">
+              <Message code={action.error} />
+              <button
+                type="button"
+                className="primary"
+                disabled={action.busy || recipe.cooked}
+                onClick={recordMeal}
+              >
+                {action.busy
+                  ? t("Recording…", "กำลังบันทึก…")
+                  : t("I made this menu", "ฉันทำเมนูนี้แล้ว")}
+              </button>
+              {recipe.cooked && (
+                <p className="success" role="status">
+                  {t(
+                    "Meal recorded. Ingredients deducted from inventory.",
+                    "บันทึกมื้ออาหารและหักวัตถุดิบจากคลังแล้ว",
+                  )}
+                </p>
+              )}
+            </div>
+            <h3>{t("Ingredients", "วัตถุดิบ")}</h3>
+            <ul>
+              {recipe.ingredients.map((item, index) => (
+                <li key={index}>
+                  {item.name[lang]} · {item.quantity} {labels[item.unit]}
+                </li>
+              ))}
+            </ul>
+            {recipe.equipment.length > 0 && (
+              <>
+                <h3>{t("Equipment", "อุปกรณ์")}</h3>
+                <p>
+                  {translatedNames(recipe.equipment, equipmentPresets, lang)}
+                </p>
+              </>
+            )}
+            <h3>{t("Cooking steps", "วิธีทำ")}</h3>
+            <ol>
+              {recipe.steps.map((step, index) => (
+                <li key={index}>{step[lang]}</li>
+              ))}
+            </ol>
+          </div>
+        </Dialog>
+      )}
+    </>
   );
 }
 
@@ -143,12 +281,14 @@ function SavedMenus() {
 export function Meals({
   preview,
   showPreview,
+  onCooked,
   stock,
   day,
   add,
 }: {
   preview: RecommendationPreview | null;
   showPreview: (preview: RecommendationPreview) => void;
+  onCooked: (id: string) => void;
   stock: Stock[];
   day: string;
   add: () => void;
@@ -158,10 +298,10 @@ export function Meals({
   const foods = useQuery(foodsQuery);
   const equipment = useQuery(equipmentQuery);
   const previewHeading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
-    if (preview) previewHeading.current?.focus();
-  }, [preview]);
   const preferences = preview?.preferences;
+  useEffect(() => {
+    if (preferences) previewHeading.current?.focus();
+  }, [preferences]);
   const conditions = preferences
     ? [
         translatedNames(preferences.dietary_styles, dietOptions, lang),
@@ -184,9 +324,9 @@ export function Meals({
     : "";
   const problem = errorCode(foods.error || equipment.error);
   return (
-    <div className="meal-layout">
-      <section className="panel">
-        <h2>{t("Plan this meal", "แนะนำเท่าที่มี")}</h2>
+    <div className="panels">
+      <section className="panel" aria-labelledby="meal-plan-title">
+        <h2 id="meal-plan-title">{t("Plan this meal", "แนะนำเท่าที่มี")}</h2>
         <Message code={problem} />
         {problem && (
           <Retry
@@ -222,9 +362,19 @@ export function Meals({
           <>
             <p>
               {t(
-                `Recipes for ${preview.preferences.servings} ${preview.preferences.servings === 1 ? "serving" : "servings"} · Up to ${preview.recipe_limit} recipes`,
-                `สำหรับ ${preview.preferences.servings} ที่ · สูงสุด ${preview.recipe_limit} เมนู`,
-              )}
+                `Recipes for ${preview.preferences.servings} ${preview.preferences.servings === 1 ? "serving" : "servings"}`,
+                `สำหรับ ${preview.preferences.servings} ที่`,
+              )}{" "}
+              ·{" "}
+              {preview.status === "generated"
+                ? t(
+                    `${preview.recipes.length} ${preview.recipes.length === 1 ? "recipe" : "recipes"}`,
+                    `${preview.recipes.length} เมนู`,
+                  )
+                : t(
+                    `Up to ${preview.recipe_limit} recipes`,
+                    `สูงสุด ${preview.recipe_limit} เมนู`,
+                  )}
             </p>
             {conditions && <p>{conditions}</p>}
             {preview.status === "preview" && (
@@ -238,48 +388,22 @@ export function Meals({
             {preview.status === "generated" && !preview.recipes.length && (
               <Message code="no_suitable_menu" />
             )}
-            {preview.recipes.map((recipe) => (
-              <article className="dish" key={recipe.name.en}>
-                <h3>{recipe.name[lang]}</h3>
-                <RecipeIllustration recipe={recipe} />
-                <p>
-                  {t(`${recipe.minutes} min`, `${recipe.minutes} นาที`)} ·{" "}
-                  {difficulties[recipe.difficulty][lang]}
-                </p>
-                {recipe.estimated_price != null && (
-                  <p>
-                    <strong>{t("Estimated cost", "ค่าใช้จ่ายโดยประมาณ")} </strong>
-                    {formatPrice(recipe.estimated_price, lang)}
-                    {recipe.price_coverage === "partial" &&
-                      t(
-                        " · based on groceries with prices",
-                        " · คำนวณจากวัตถุดิบที่มีราคา",
-                      )}
-                  </p>
-                )}
-                <h4>{t("Ingredients", "วัตถุดิบ")}</h4>
-                <ul>
-                  {recipe.ingredients.map((ingredient, index) => (
-                    <li key={index}>
-                      {ingredient.name[lang]} · {ingredient.quantity}{" "}
-                      {labels[ingredient.unit]}
-                    </li>
+            {preview.recipes.length > 0 && (
+              <>
+                <div className="recipe-cards">
+                  {preview.recipes.map((recipe) => (
+                    <RecipeCard
+                      key={recipe.id || recipe.name.en}
+                      recipe={recipe}
+                      servings={preview.preferences.servings}
+                      day={day}
+                      onCooked={onCooked}
+                    />
                   ))}
-                </ul>
-                {recipe.equipment.length > 0 && (
-                  <p>
-                    <strong>{t("Equipment", "อุปกรณ์")} </strong>
-                    {translatedNames(recipe.equipment, equipmentPresets, lang)}
-                  </p>
-                )}
-                <h4>{t("Cooking steps", "วิธีทำ")}</h4>
-                <ol>
-                  {recipe.steps.map((step, index) => (
-                    <li key={index}>{step[lang]}</li>
-                  ))}
-                </ol>
-              </article>
-            ))}
+                </div>
+                <hr className="recipe-divider" />
+              </>
+            )}
             <dl className="meal-summary">
               <dt>{t("Available equipment", "อุปกรณ์ที่ใช้ได้")}</dt>
               <dd>

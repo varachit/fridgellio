@@ -15,6 +15,7 @@ from .barcodes import (
     search_barcode,
     verified_barcode,
 )
+from .cooking import router as cooking_router
 from .data import CurrentAccount, Member, Session, owned_stock, stock_view
 from .errors import ApiError, responses
 from .households import router as households_router
@@ -48,6 +49,7 @@ api.include_router(auth_router)
 api.include_router(households_router)
 api.include_router(preferences_router)
 api.include_router(recommendations_router)
+api.include_router(cooking_router)
 Today = Annotated[CalendarDate | None, Query(description="Client's local calendar date")]
 PageSize = Annotated[int, Query(ge=1, le=200)]
 PageOffset = Annotated[int, Query(ge=0)]

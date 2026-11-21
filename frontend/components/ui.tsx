@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, useId } from "react";
+import { useState, useRef, useLayoutEffect, useId } from "react";
 import { X, CircleAlert, LoaderCircle, Globe, Sprout } from "lucide-react";
 import { useLanguage } from "./language";
 import { ApiError } from "@/lib/api";
@@ -82,6 +82,14 @@ const errors: Record<string, [string, string]> = {
   insufficient_stock: [
     "The amount exceeds the remaining stock.",
     "จำนวนมากกว่าปริมาณคงเหลือ",
+  ],
+  meal_stock_shortage: [
+    "There isn't enough in-date stock for this recipe. No ingredients were deducted.",
+    "วัตถุดิบที่ยังไม่หมดอายุมีไม่พอสำหรับเมนูนี้ ยังไม่ได้หักวัตถุดิบจากคลัง",
+  ],
+  meal_quantity_precision: [
+    "The exact amount could not be recorded in the stock entry’s unit. No ingredients were deducted.",
+    "ไม่สามารถบันทึกปริมาณที่แน่นอนในหน่วยของรายการนี้ได้ ยังไม่ได้หักวัตถุดิบจากคลัง",
   ],
   invalid_count: [
     "Enter a whole number for individual items.",
@@ -264,7 +272,7 @@ export function Dialog({
   const ref = useRef<HTMLDialogElement>(null);
   const id = useId();
   const { t } = useText();
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current;
     el?.showModal();
     return () => el?.close();

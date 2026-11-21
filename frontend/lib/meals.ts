@@ -44,7 +44,10 @@ export type RecommendationPreview = {
     price_coverage: "full" | "partial" | "none";
   })[];
   recipes: {
+    id: string;
+    cooked?: boolean;
     name: Localized;
+    description: Localized;
     ingredients: {
       name: Localized;
       quantity: string;
@@ -60,6 +63,25 @@ export type RecommendationPreview = {
     price_coverage: "full" | "partial" | "none";
   }[];
 };
+
+export function withRecipeIds(
+  preview: RecommendationPreview,
+): RecommendationPreview {
+  if (preview.recipes.every((recipe) => recipe.id)) return preview;
+  return {
+    ...preview,
+    recipes: preview.recipes.map((recipe) =>
+      recipe.id
+        ? recipe
+        : {
+            ...recipe,
+            id: Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+              byte.toString(16).padStart(2, "0"),
+            ).join(""),
+          },
+    ),
+  };
+}
 
 export function translatedNames(
   values: string[],

@@ -19,7 +19,13 @@ from fridgellio.config import Settings
 from fridgellio.data import token_digest
 from fridgellio.main import create_app
 from fridgellio.manage_auth import set_password
-from fridgellio.models import Account, AccountCredential, AccountSession, AuthRateLimit, Menu
+from fridgellio.models import (
+    Account,
+    AccountCredential,
+    AccountSession,
+    AuthRateLimit,
+    Menu,
+)
 
 API_DIR = Path(__file__).resolve().parents[1]
 PASSWORD = "example passphrase 123"
@@ -124,6 +130,9 @@ def add_stock(
     expiry_date=None,
     *,
     location="fridge",
+    unit="g",
+    name_en=None,
+    name_th=None,
     price=None,
 ):
     result = client.post(
@@ -131,9 +140,11 @@ def add_stock(
         headers=member,
         json={
             "name": name,
+            "name_en": name_en,
+            "name_th": name_th,
             "quantity": quantity,
+            "unit": unit,
             "price": price,
-            "unit": "g",
             "location": location,
             "expiry_date": expiry_date,
         },
@@ -676,6 +687,7 @@ def test_recommendation_preview_resolves_settings_and_filters_stock(
                 "recipes": [
                     {
                         "name": {"en": "Cooked spinach", "th": "ผักโขมปรุงสุก"},
+                        "description": {"en": "Tender spinach.", "th": "ผักโขมเนื้อนุ่ม"},
                         "ingredients": [{"reference": reference, "quantity": "75"}],
                         "equipment": ["Stove"],
                         "steps": [{"en": "Cook the spinach.", "th": "ปรุงผักโขมให้สุก"}],
@@ -692,4 +704,155 @@ def test_recommendation_preview_resolves_settings_and_filters_stock(
     assert generated.status_code == 200, generated.json()
     assert generated.json()["status"] == "generated"
     assert len(generated.json()["recipes"]) == 1
+    assert generated.json()["recipes"][0]["description"] == {
+        "en": "Tender spinach.",
+        "th": "ผักโขมเนื้อนุ่ม",
+    }
     assert generated.json()["recipes"][0]["ingredients"][0]["quantity"] == "75"
+    recipe = generated.json()["recipes"][0]
+    made = client.post(
+        "/api/menus/cooked",
+        headers={**owner, "Idempotency-Key": recipe["id"]},
+        json={
+            **today,
+            "name": recipe["name"],
+            "ingredients": [
+                {key: item[key] for key in ("name", "quantity", "unit")}
+                for item in recipe["ingredients"]
+            ],
+        },
+    )
+    assert made.status_code == 204, made.text
+    history = client.get("/api/inventory-history", headers=member).json()
+    assert any(event["kind"] == "used" and event["quantity"] == "75" for event in history)
+
+
+def test_cooked_recipe_allocates_exact_stock_once_or_rolls_back(client, household_accounts):
+    cook, _, outsider = household_accounts
+    for account in (cook, outsider):
+        assert client.post("/api/household", headers=account).status_code == 201
+    today = "2026-06-10"
+    spinach = {"en": "Spinach", "th": "ผักโขม"}
+    milk = {"en": "Milk", "th": "นม"}
+    eggs = {"en": "Eggs", "th": "ไข่"}
+    due = add_stock(client, cook, spinach["th"], "100", today)
+    later = add_stock(
+        client,
+        cook,
+        "Spinach",
+        "0.15",
+        "2026-06-12",
+        unit="kg",
+        name_en="Spinach",
+        name_th=spinach["th"],
+    )
+    undated = add_stock(client, cook, "Spinach", "80")
+    expired = add_stock(client, cook, "Spinach", "50", "2026-06-09")
+    wrong_unit = add_stock(client, cook, "Spinach", "3", unit="each")
+    milk_id = add_stock(client, cook, "Milk", "0.5", unit="l")
+    duck_eggs = add_stock(
+        client, cook, "Duck eggs", "6", unit="each", name_en="Duck eggs", name_th=eggs["th"]
+    )
+    outsider_eggs = add_stock(client, outsider, "Eggs", "12", unit="each")
+    recipe = {
+        "today": today,
+        "name": {"en": "Spinach eggs", "th": "ไข่ผักโขม"},
+        "ingredients": [
+            {"name": spinach, "quantity": "125", "unit": "g"},
+            {"name": spinach, "quantity": "50", "unit": "g"},
+            {"name": milk, "quantity": "125.5", "unit": "ml"},
+            {"name": eggs, "quantity": "2", "unit": "each"},
+        ],
+    }
+    path = "/api/menus/cooked"
+    headers = {**cook, "Idempotency-Key": str(uuid4())}
+    before = client.get("/api/inventory", headers=cook).json()
+    shortage = client.post(path, json=recipe, headers=headers)
+    assert (shortage.status_code, shortage.json()["code"]) == (
+        409,
+        "meal_stock_shortage",
+    )
+    assert client.get("/api/inventory", headers=cook).json() == before
+    assert {
+        event["kind"] for event in client.get("/api/inventory-history", headers=cook).json()
+    } == {"added"}
+
+    egg_id = add_stock(client, cook, "Eggs", "2", unit="each")
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts = [pool.submit(client.post, path, json=recipe, headers=headers) for _ in range(2)]
+        assert [attempt.result().status_code for attempt in attempts] == [204, 204]
+    remaining = {
+        item["id"]: (item["quantity"], item["unit"])
+        for item in client.get("/api/inventory", headers=cook).json()
+    }
+    assert remaining == {
+        later: ("0.075", "kg"),
+        undated: ("80", "g"),
+        expired: ("50", "g"),
+        wrong_unit: ("3", "each"),
+        duck_eggs: ("6", "each"),
+        milk_id: ("0.3745", "l"),
+    }
+    used = [
+        event
+        for event in client.get("/api/inventory-history", headers=cook).json()
+        if event["kind"] == "used"
+    ]
+    assert sorted((e["stock_id"], e["quantity"], e["unit"]) for e in used) == sorted(
+        [
+            (due, "100", "g"),
+            (later, "0.075", "kg"),
+            (milk_id, "0.1255", "l"),
+            (egg_id, "2", "each"),
+        ]
+    )
+    assert (
+        client.get(f"/api/inventory/{outsider_eggs}/events", headers=outsider).json()[0]["quantity"]
+        == "12"
+    )
+    changed = client.post(
+        path, json={**recipe, "ingredients": recipe["ingredients"][:1]}, headers=headers
+    )
+    assert (changed.status_code, changed.json()["code"]) == (
+        409,
+        "idempotency_conflict",
+    )
+
+
+def test_competing_meals_cannot_overdraw_and_keep_fractional_units_exact(
+    client, household_accounts
+):
+    owner, member, _ = household_accounts
+    assert client.post("/api/household", headers=owner).status_code == 201
+    invite = client.post("/api/household/invitations", headers=owner).json()["token"]
+    assert (
+        client.post("/api/household/join", headers=member, json={"token": invite}).status_code
+        == 201
+    )
+    entry = add_stock(client, owner, "Rice", "0.1", unit="kg")
+    recipe = {
+        "name": {"en": "Warm rice", "th": "ข้าวอุ่น"},
+        "ingredients": [
+            {"name": {"en": "Rice", "th": "ข้าว"}, "quantity": "75.000001", "unit": "g"}
+        ],
+    }
+
+    def cook(actor):
+        return client.post(
+            "/api/menus/cooked",
+            json=recipe,
+            headers={**actor, "Idempotency-Key": str(uuid4())},
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts = [pool.submit(cook, actor) for actor in (owner, member)]
+        assert sorted(attempt.result().status_code for attempt in attempts) == [
+            204,
+            409,
+        ]
+    (remaining,) = client.get("/api/inventory", headers=owner).json()
+    assert (remaining["quantity"], remaining["unit"]) == ("24.999999", "g")
+    events = client.get(f"/api/inventory/{entry}/events", headers=owner).json()
+    assert [(e["quantity"], e["unit"]) for e in events if e["kind"] == "used"] == [
+        ("75.000001", "g")
+    ]
