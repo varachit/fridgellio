@@ -1,6 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { expect, test, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 import { localDay } from "../lib/pantry";
 
 const suffix = () => crypto.randomUUID().slice(0, 8);
@@ -45,6 +51,41 @@ function backendSessions(action: "count" | "expire", username: string) {
       encoding: "utf8",
     },
   ).trim();
+}
+
+async function useTestCamera(page: Page) {
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = async (constraints) => {
+      const video = constraints?.video;
+      if (
+        constraints?.audio !== false ||
+        typeof video !== "object" ||
+        typeof video.facingMode !== "object" ||
+        !("ideal" in video.facingMode) ||
+        video.facingMode.ideal !== "environment"
+      )
+        throw new Error("Unexpected camera constraints");
+      const frame = document.createElement("canvas");
+      frame.width = 320;
+      frame.height = 240;
+      const context = frame.getContext("2d")!;
+      const stream = frame.captureStream(10);
+      const track = stream.getVideoTracks()[0];
+      context.fillStyle = "white";
+      const timer = setInterval(() => {
+        if (track.readyState === "ended") clearInterval(timer);
+        else context.fillRect(0, 0, frame.width, frame.height);
+      }, 100);
+      return stream;
+    };
+  });
+}
+
+function cameraTrack(dialog: Locator) {
+  return dialog.locator("video").evaluateHandle((element) => {
+    const stream = (element as HTMLVideoElement).srcObject as MediaStream;
+    return stream.getVideoTracks()[0];
+  });
 }
 
 test("workspace navigation stays on the left and opens as a drawer on mobile", async ({
@@ -570,22 +611,7 @@ test("equipment cards retain earlier names and recover from a failed save", asyn
 test("camera retries unreadable frames and automatically looks up a barcode once", async ({
   page,
 }) => {
-  await page.addInitScript(() => {
-    navigator.mediaDevices.getUserMedia = async () => {
-      const frame = document.createElement("canvas");
-      frame.width = 320;
-      frame.height = 240;
-      const context = frame.getContext("2d")!;
-      const stream = frame.captureStream(10);
-      const track = stream.getVideoTracks()[0];
-      context.fillStyle = "white";
-      const timer = setInterval(() => {
-        if (track.readyState === "ended") clearInterval(timer);
-        else context.fillRect(0, 0, frame.width, frame.height);
-      }, 100);
-      return stream;
-    };
-  });
+  await useTestCamera(page);
   await register(page, "camera" + suffix());
   await page
     .getByRole("button", { name: "Create household", exact: true })
@@ -661,22 +687,37 @@ test("camera retries unreadable frames and automatically looks up a barcode once
   expect(lookups).toBe(1);
 });
 
-test("barcode review, pantry request preview, edit and removal", async ({
+test("photo intake, barcode review, pantry request preview, edit and removal", async ({
   page,
-}) => {
+}, info) => {
+  await useTestCamera(page);
   await register(page, "intake" + suffix());
   await page
     .getByRole("button", { name: "Create household", exact: true })
     .click();
+  await test.step("Retry denied camera access and release the webcam on exit", () =>
+    checkCameraAccess(page, info));
   await page.getByRole("button", { name: "Add groceries" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Photo", exact: true }).click();
-  await dialog.getByLabel("Grocery photo").setInputFiles({
-    name: "test.jpg",
-    mimeType: "image/jpeg",
-    buffer: Buffer.from("photo test fixture"),
+  await dialog.screenshot({
+    path: info.outputPath("grocery-photo-options.png"),
   });
+  const picker = page.waitForEvent("filechooser");
+  await dialog.getByRole("button", { name: "Choose image" }).click();
+  await (await picker).setFiles("public/kitchen.jpg");
+  await expect(
+    dialog.getByRole("img", { name: "Grocery photo preview" }),
+  ).toBeVisible();
+  await expect(dialog.locator("video")).toHaveCount(0);
+  await page.route("**/api/photos/analyze", (route) =>
+    route.fulfill({ status: 503, json: { code: "photo_unavailable" } }),
+  );
+  const analysis = page.waitForRequest("**/api/photos/analyze");
   await dialog.getByRole("button", { name: "Analyze photo" }).click();
+  expect((await analysis).headers()["content-type"]).toContain(
+    "multipart/form-data",
+  );
   await expect(dialog.getByRole("alert")).toContainText(
     "Photo analysis is unavailable",
   );
@@ -730,32 +771,117 @@ test("barcode review, pantry request preview, edit and removal", async ({
   await expect(page.getByText("Your pantry is empty")).toBeVisible();
 });
 
+async function checkCameraAccess(page: Page, info: TestInfo) {
+  const viewport = page.viewportSize();
+  await page.evaluate(() => {
+    const open = navigator.mediaDevices.getUserMedia;
+    navigator.mediaDevices.getUserMedia = async () => {
+      navigator.mediaDevices.getUserMedia = open;
+      throw new DOMException("Camera access denied", "NotAllowedError");
+    };
+  });
+  await page.getByRole("button", { name: "Add groceries" }).click();
+  const dialog = page.getByRole("dialog");
+  const photo = dialog.getByRole("button", { name: "Photo", exact: true });
+  const shutter = dialog.getByRole("button", { name: "Take photo" });
+  await photo.click();
+  const openCamera = dialog.getByRole("button", { name: "Open camera" });
+  await openCamera.click();
+  await expect(dialog.getByRole("alert")).toContainText("Camera unavailable");
+  await expect(
+    dialog.getByRole("button", { name: "Enter manually" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Choose image" }),
+  ).toBeEnabled();
+  await openCamera.click();
+  await expect(shutter).toBeEnabled();
+  const desktop = await cameraTrack(dialog);
+  await dialog.screenshot({
+    path: info.outputPath("grocery-camera-desktop.png"),
+  });
+  await dialog.getByRole("button", { name: "Manual", exact: true }).click();
+  await expect
+    .poll(() => desktop.evaluate((track) => track.readyState))
+    .toBe("ended");
+  await expect(dialog.getByLabel("Item name", { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await photo.click();
+  await openCamera.click();
+  await expect(shutter).toBeEnabled();
+  const mobile = await cameraTrack(dialog);
+  await dialog.screenshot({
+    path: info.outputPath("grocery-camera-mobile.png"),
+  });
+  expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+    true,
+  );
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect
+    .poll(() => mobile.evaluate((track) => track.readyState))
+    .toBe("ended");
+  if (viewport) await page.setViewportSize(viewport);
+}
+
 test("reviews photo suggestions and shows recipes with personal overrides", async ({
   page,
 }, info) => {
+  await useTestCamera(page);
   await register(page, "photo" + suffix());
   await page
     .getByRole("button", { name: "Create household", exact: true })
     .click();
   const eggs = { en: "Chicken eggs", th: "ไข่ไก่" };
-  await page.route("**/api/photos/analyze", (route) =>
-    route.fulfill({
+  let analyses = 0;
+  await page.route("**/api/photos/analyze", async (route) => {
+    analyses++;
+    const image = (
+      await new Response(Uint8Array.from(route.request().postDataBuffer()!), {
+        headers: { "content-type": route.request().headers()["content-type"] },
+      }).formData()
+    ).get("photo") as File;
+    expect(image.type).toBe("image/jpeg");
+    expect(
+      Array.from(new Uint8Array(await image.arrayBuffer()).slice(0, 3)),
+    ).toEqual([255, 216, 255]);
+    return route.fulfill({
       json: {
         suggestions: [
           { name: eggs, quantity: "6", unit: "each", expiry_date: null },
         ],
       },
-    }),
-  );
+    });
+  });
   await page.getByRole("button", { name: "Add groceries" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Photo", exact: true }).click();
-  await dialog.getByLabel("Grocery photo").setInputFiles("public/kitchen.jpg");
+  await expect(dialog.locator("video")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Open camera" }).click();
+  const shutter = dialog.getByRole("button", { name: "Take photo" });
+  await expect(shutter).toBeEnabled();
+  const track = await cameraTrack(dialog);
+  await shutter.press("Enter");
+  await expect(
+    dialog.getByRole("img", { name: "Grocery photo preview" }),
+  ).toBeVisible();
+  await expect
+    .poll(() => track.evaluate((track) => track.readyState))
+    .toBe("ended");
+  await dialog.getByRole("button", { name: "Retake photo" }).click();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    dialog.getByRole("img", { name: "Grocery photo preview" }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Retake photo" }).click();
+  await shutter.click();
+  expect(analyses).toBe(0);
   await dialog.getByRole("button", { name: "Analyze photo" }).click();
   await expect(
     dialog.getByLabel("Thai name (optional)", { exact: true }),
   ).toHaveValue(eggs.th);
   await expect(dialog.getByLabel("Quantity")).toHaveValue("6");
+  expect(analyses).toBe(1);
   await expect(dialog.getByLabel("Expiry date")).toHaveValue("");
   await dialog
     .getByRole("combobox", { name: "Storage location", exact: true })

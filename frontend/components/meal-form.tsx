@@ -163,7 +163,8 @@ export function MealForm({
     useState<MealPreferences["difficulty"]>("any");
   const [avoidedOverride, setAvoidedOverride] = useState<string | null>(null);
   const [gearOverride, setGearOverride] = useState<Selection | null>(null);
-  const avoidText = avoidedOverride ?? foods.map((item) => item.name).join("\n");
+  const avoidText =
+    avoidedOverride ?? foods.map((item) => item.name).join("\n");
   const tools = equipmentChoices(equipment);
   const gear = gearOverride ?? {
     names: tools.flatMap((choice) =>

@@ -12,7 +12,8 @@
 - [x] Implement OpenAI web search for barcodes with Open Food Facts as a fallback.
 - [x] Decode numeric barcodes from uploaded camera stills.
 - [x] Generate up to five pantry-only recipes with per-request preferences and compatible stock totals.
-- [x] Add typed photo-analysis and menu-generation placeholders that return `501`.
+- [x] Connect grocery photo analysis to OpenAI with typed bilingual suggestions.
+- [x] Keep a typed menu-generation placeholder that returns `501`.
 
 ## API contract
 
@@ -37,7 +38,8 @@
 | `PATCH /api/equipment/{equipment_id}`, `DELETE /api/equipment/{equipment_id}` | Edit or remove owned equipment. |
 | `GET /api/barcodes/{code}` | Look up a product without writing inventory. Return code, name, and brands, with optional localized names and numeric `Quantity` and `Unit`. Include `X-Barcode-Source` for web results. Use an optional `language` override or the saved preference. |
 | `POST /api/barcodes/decode` | Accept one image in the multipart `photo` field and return the decoded digits as a JSON string. |
-| `POST /api/photos/analyze`, `POST /api/menus` | Reserve authenticated routes for future AI work. Return `501` with a machine-readable error. |
+| `POST /api/photos/analyze` | Validate one grocery image and return structured bilingual OpenAI suggestions for review. |
+| `POST /api/menus` | Reserve an authenticated route for future AI work. Return `501` with a machine-readable error. |
 
 ### Meal request example
 
@@ -72,4 +74,4 @@ The response includes `recipe_limit: 5` and pantry quantities in whole items, gr
 
 ## Deferred AI work
 
-- [ ] Connect OpenAI for bilingual photo suggestions.
+- [ ] Connect OpenAI for bilingual menu generation. Validate eligibility, compatible quantities across dishes, equipment, translations, and the current inventory before saving menus.

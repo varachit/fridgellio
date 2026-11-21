@@ -242,9 +242,21 @@ class LocalizedText(BaseModel):
 
 class PhotoSuggestion(BaseModel):
     name: LocalizedText
-    quantity: Decimal | None
+    quantity: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=6)
     unit: Unit | None
     expiry_date: date | None
+
+    @model_validator(mode="after")
+    def validate_measurement(self):
+        if (self.quantity is None) != (self.unit is None):
+            raise ValueError("Quantity and unit must be provided together")
+        if (
+            self.quantity is not None
+            and self.unit is not None
+            and not count_is_valid(self.unit, self.quantity)
+        ):
+            raise ValueError("Quantity must be a whole number for each")
+        return self
 
 
 class PhotoAnalysis(BaseModel):
