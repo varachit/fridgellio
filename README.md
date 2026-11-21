@@ -27,7 +27,7 @@ Use the app in English or Thai. Fridgellio saves both language versions of AI-ge
 | `assets/brand/` | Lucide-derived SVG logo variants and usage guidance |
 | `frontend/experimental/` | Standalone Three.js illustration and Framer Motion UI preview, with exported GLB models |
 
-FastAPI stores shared inventory, cooking equipment, and each member's private settings in PostgreSQL. Barcode lookup checks verified corrections by exact barcode, then uses OpenAI web search when configured, with Open Food Facts as a fallback. The first backend pass reserves routes for OpenAI photo analysis and bilingual menu generation. See the [backend stack](docs/backend-stack.md) for integration and Swagger details.
+FastAPI stores shared inventory, cooking equipment, and each member's private settings in PostgreSQL. Grocery photos are analyzed with OpenAI to produce editable bilingual item suggestions. Barcode lookup checks verified corrections by exact barcode, then uses OpenAI web search when configured, with Open Food Facts as a fallback. Bilingual menu generation remains reserved for a later pass. See the [backend stack](docs/backend-stack.md) for integration and Swagger details.
 
 **Scan barcode** sends camera stills one at a time to `POST /api/barcodes/decode` as multipart `photo` fields. Once the endpoint returns barcode digits such as `"8851234567898"`, the camera stops and the frontend sends those digits to `GET /api/barcodes/{code}`.
 
@@ -42,7 +42,7 @@ uv run alembic upgrade head
 uv run uvicorn fridgellio.main:create_app --factory --reload --no-access-log
 ```
 
-Open Swagger UI at `http://127.0.0.1:8000/docs`. Register with `POST /api/auth/register` and supply `username`, `password`, `first_name`, and `last_name`. Sign in to an existing account with `POST /api/auth/login`. Copy the returned `token` into Swagger’s **Authorize** field to call protected routes. The household owner can issue single-use invites that expire after 24 hours and revoke them before use. Use `POST /api/menus/recommendations` to preview a meal request with household stock. The AI photo analysis and menu generation routes return `501` until AI integration is added.
+Open Swagger UI at `http://127.0.0.1:8000/docs`. Register with `POST /api/auth/register` and supply `username`, `password`, `first_name`, and `last_name`. Sign in to an existing account with `POST /api/auth/login`. Copy the returned `token` into Swagger’s **Authorize** field to call protected routes. The household owner can issue single-use invites that expire after 24 hours and revoke them before use. Send one JPEG, PNG, or WebP file in the `photo` field to `POST /api/photos/analyze` for editable grocery suggestions. Use `POST /api/menus/recommendations` to preview a meal request with household stock. Bilingual menu generation still returns `501` until its AI integration is added.
 
 See [Authentication operations](docs/backend-stack.md#authentication-operations) for password resets, expired session cleanup, and provisioning local credentials for existing accounts.
 

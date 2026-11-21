@@ -119,6 +119,26 @@ const errors: Record<string, [string, string]> = {
     "Photo analysis is unavailable. Try again later or add the item manually.",
     "ยังวิเคราะห์รูปไม่ได้ ลองภายหลังหรือกรอกเอง",
   ],
+  photo_unavailable: [
+    "Photo analysis is unavailable. Try again later or add the item manually.",
+    "ยังวิเคราะห์รูปไม่ได้ ลองภายหลังหรือกรอกเอง",
+  ],
+  photo_invalid_response: [
+    "The photo result could not be read. Try again or add the item manually.",
+    "อ่านผลจากรูปไม่ได้ ลองอีกครั้งหรือกรอกเอง",
+  ],
+  photo_rate_limited: [
+    "Photo analysis is busy. Try again shortly.",
+    "ระบบวิเคราะห์รูปไม่ว่าง ลองใหม่ภายหลัง",
+  ],
+  invalid_photo: [
+    "Choose a valid JPEG, PNG, or WebP photo.",
+    "เลือกภาพ JPEG, PNG หรือ WebP ที่ถูกต้อง",
+  ],
+  photo_dimensions: [
+    "Choose a photo no larger than 16 megapixels.",
+    "เลือกภาพที่มีขนาดไม่เกิน 16 เมกะพิกเซล",
+  ],
   empty_photo: [
     "No groceries were detected. Try a different photo or add an item manually.",
     "ไม่พบของสดในภาพ ลองเปลี่ยนภาพหรือกรอกเอง",

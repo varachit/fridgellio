@@ -422,11 +422,19 @@ def test_session_lifecycle_and_expiration(client, database):
     assert client.post("/api/auth/logout", headers=first).status_code == 204
     assert client.get("/api/auth/me", headers=first).status_code == 401
     assert client.get("/api/auth/me", headers=second).json() == account
-    for path in ("/api/menus", "/api/photos/analyze"):
-        response = client.post(path, headers=second)
-        assert response.status_code == 501
-        assert response.json()["code"] == "ai_not_implemented"
-        assert response.json()["request_id"] == response.headers["X-Request-ID"]
+    response = client.post("/api/menus", headers=second)
+    assert response.status_code == 501
+    assert response.json()["code"] == "ai_not_implemented"
+    assert response.json()["request_id"] == response.headers["X-Request-ID"]
+
+    response = client.post(
+        "/api/photos/analyze",
+        headers=second,
+        files={"photo": ("grocery.jpg", b"not needed without OpenAI", "image/jpeg")},
+    )
+    assert response.status_code == 503
+    assert response.json()["code"] == "photo_unavailable"
+    assert response.json()["request_id"] == response.headers["X-Request-ID"]
 
     engine = create_engine(database[0], hide_parameters=True)
     try:
