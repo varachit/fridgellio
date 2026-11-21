@@ -660,7 +660,7 @@ test("camera retries unreadable frames and automatically looks up a barcode once
   expect(lookups).toBe(1);
 });
 
-test("barcode review, availability errors, edit and removal", async ({
+test("barcode review, pantry request preview, edit and removal", async ({
   page,
 }) => {
   await register(page, "intake" + suffix());
@@ -707,9 +707,9 @@ test("barcode review, availability errors, edit and removal", async ({
   await dialog.getByRole("button", { name: "Save entry" }).click();
   await go(page, "Meal ideas");
   await page.getByRole("button", { name: "Generate menu" }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "Menu generation is unavailable",
-  );
+  await expect(
+    page.getByRole("region", { name: "Request preview" }),
+  ).toContainText("250 g");
   await go(page, "Inventory");
   await page.getByRole("button", { name: /Rice/ }).click();
   await dialog.getByRole("button", { name: "Edit entry" }).click();
@@ -729,9 +729,9 @@ test("barcode review, availability errors, edit and removal", async ({
   await expect(page.getByText("Your pantry is empty")).toBeVisible();
 });
 
-test("reviews photo suggestions, preserves a failed save and switches menu language", async ({
+test("reviews photo suggestions and previews a meal with personal overrides", async ({
   page,
-}) => {
+}, info) => {
   await register(page, "photo" + suffix());
   await page
     .getByRole("button", { name: "Create household", exact: true })
@@ -784,7 +784,10 @@ test("reviews photo suggestions, preserves a failed save and switches menu langu
     .getByRole("button", { name: "Add", exact: true })
     .click();
   await expect(page.getByText(eggs.th, { exact: true })).toBeVisible();
-  let requests = 0;
+  await page.getByRole("button", { name: "Stove", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Stove", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   const dish = {
     name: { en: "Eggs", th: "เมนูไข่" },
     ingredients: [
@@ -793,32 +796,121 @@ test("reviews photo suggestions, preserves a failed save and switches menu langu
     equipment: [],
     steps: [{ en: "Peel the cooked eggs.", th: "ปอกเปลือกไข่ต้ม" }],
   };
-  await page.route("**/api/menus", async (route) => {
-    if (route.request().method() !== "POST") return route.fallback();
-    requests++;
-    await route.fulfill({
-      json: {
-        id: "menu-1",
-        created_at: new Date().toISOString(),
-        dishes: [dish],
-      },
-    });
+  await page.route("**/api/menus?*", (route) =>
+    route.fulfill({
+      json: [
+        { id: "menu-1", created_at: new Date().toISOString(), dishes: [dish] },
+      ],
+    }),
+  );
+  await go(page, "Meal ideas");
+  const generate = page.getByRole("button", { name: "Generate menu" });
+  await expect(generate).toBeDisabled();
+  await page.getByRole("button", { name: "Edit foods for this meal" }).click();
+  const exclusions = page.getByRole("textbox", {
+    name: "Foods to avoid",
+    exact: true,
   });
-  await go(page, "Meal ideas");
+  await expect(exclusions).toHaveValue(eggs.th);
+  await exclusions.fill("Peanuts");
+  await expect(page.getByLabel("Stove", { exact: true })).toBeChecked();
+  await page.getByLabel("Stove", { exact: true }).uncheck();
+  await page.getByLabel("Microwave", { exact: true }).check();
+  const diet = page
+    .locator("details")
+    .filter({ has: page.getByText("Diet & nutrition", { exact: true }) });
+  await diet.locator("summary").click();
+  await diet.getByLabel("Vegan", { exact: true }).check();
+  await diet.getByLabel("Other", { exact: true }).check();
+  await diet.getByLabel("Other dietary style").fill("Dairy-free");
+  await diet
+    .getByRole("combobox", { name: "Nutrition goal", exact: true })
+    .selectOption("other");
+  await diet.getByLabel("Other nutrition goal").fill("More fiber");
+  const cuisine = page
+    .locator("details")
+    .filter({ has: page.getByText("Cuisine & difficulty", { exact: true }) });
+  await cuisine.locator("summary").click();
+  await cuisine.getByLabel("Thai", { exact: true }).check();
+  await cuisine.getByLabel("Japanese", { exact: true }).check();
+  await cuisine.getByLabel("Easy", { exact: true }).check();
+  await cuisine.getByLabel("Other", { exact: true }).check();
+  await cuisine.getByLabel("Other cuisine").fill("Indian");
+  await cuisine.locator("summary").click();
+  await page.getByLabel("Maximum total time").selectOption("30");
+  await page.getByRole("button", { name: "Fewer servings" }).click();
   await expect(
-    page.getByText(
-      "Your Foods to avoid list excludes every available ingredient.",
-    ),
-  ).toBeVisible();
-  expect(requests).toBe(0);
-  await page.getByRole("link", { name: "Review foods to avoid" }).click();
-  await page.getByRole("button", { name: "Remove", exact: true }).click();
-  await dialog.getByRole("button", { name: "Confirm removal" }).click();
-  await go(page, "Meal ideas");
-  await page.getByRole("button", { name: "Generate menu" }).click();
+    page.getByRole("button", { name: "Fewer servings" }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "More servings" }).click();
+  await page.getByRole("button", { name: "More servings" }).click();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: info.outputPath("meal-planner-desktop.png") });
+  await page.route(
+    "**/api/menus/recommendations",
+    (route) =>
+      route.fulfill({
+        status: 503,
+        json: { code: "database_unavailable" },
+      }),
+    { times: 1 },
+  );
+  await generate.click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "database is unavailable",
+  );
+  const result = page.waitForResponse((response) =>
+    response.url().endsWith("/api/menus/recommendations"),
+  );
+  await generate.click();
+  const preview = await (await result).json();
+  expect(preview).toMatchObject({
+    status: "preview",
+    recipe_limit: 5,
+    preferences: {
+      servings: 3,
+      dietary_styles: ["Vegan", "Dairy-free"],
+      nutrition_goal: "More fiber",
+      cuisines: ["Thai", "Japanese", "Indian"],
+      difficulty: "easy",
+      max_total_minutes: 30,
+      foods_to_avoid: ["Peanuts"],
+      equipment: ["Microwave"],
+    },
+    ingredients: [{ name_th: eggs.th, quantity: "6", unit: "each" }],
+  });
+  await expect(
+    page.getByRole("region", { name: "Request preview" }),
+  ).toContainText("3 servings");
   await expect(page.getByText(dish.steps[0].en)).toBeVisible();
   await page.getByRole("button", { name: "Switch to Thai" }).click();
   await expect(page.getByText(dish.steps[0].th)).toBeVisible();
-  await expect(page.getByText("ไข่ไก่ · 2 ชิ้น")).toBeVisible();
-  expect(requests).toBe(1);
+  await expect(
+    page.getByRole("region", { name: "ตัวอย่างคำขอเมนู" }),
+  ).toContainText("ไมโครเวฟ");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({ path: info.outputPath("meal-planner-mobile.png") });
+  const cuisineToggle = page
+    .locator("summary")
+    .filter({ hasText: "สไตล์อาหารและความยาก" });
+  await cuisineToggle.focus();
+  await cuisineToggle.press("Enter");
+  await expect(
+    page.getByRole("checkbox", { name: "ไทย", exact: true }),
+  ).toBeChecked();
+  await expect(
+    page.getByRole("radio", { name: "ง่าย", exact: true }),
+  ).toBeChecked();
+  expect(
+    await (await page.request.get("/api/preferences/foods-to-avoid")).json(),
+  ).toEqual([{ id: expect.any(String), name: eggs.th }]);
+  expect(await (await page.request.get("/api/equipment")).json()).toEqual([
+    { id: expect.any(String), name: "Stove" },
+  ]);
 });

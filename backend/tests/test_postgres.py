@@ -549,3 +549,99 @@ def test_saved_menus_are_private_and_bilingual(client, database):
     assert menus[0]["dishes"] == [dish]
     assert client.get("/api/menus", headers=other).json() == []
     assert client.get("/api/menus").status_code == 401
+
+
+def test_recommendation_preview_resolves_settings_and_filters_stock(client, household_accounts):
+    owner, member, outsider = household_accounts
+    route = "/api/menus/recommendations"
+    today = {"today": "2026-06-10"}
+    assert client.post(route, json=today).status_code == 401
+    assert client.post(route, headers=owner, json=today).status_code == 403
+    for headers in (owner, outsider):
+        assert client.post("/api/household", headers=headers).status_code == 201
+    invite = client.post("/api/household/invitations", headers=owner).json()["token"]
+    assert (
+        client.post("/api/household/join", headers=member, json={"token": invite}).status_code
+        == 201
+    )
+    client.post("/api/equipment", headers=owner, json={"name": "Stove"})
+    client.post("/api/equipment", headers=outsider, json={"name": "Oven"})
+    client.post("/api/preferences/foods-to-avoid", headers=owner, json={"name": "ถั่วลิสง"})
+    add_stock(client, owner, "Spinach", "100", "2026-06-10")
+    add_stock(client, member, "Spinach", "50", "2026-06-09")
+    add_stock(client, outsider, "Onion")
+    for name, english, thai, quantity, unit in [
+        ("ผักโขม", "Spinach", "ผักโขม", "0.15", "kg"),
+        ("Spinach", None, None, "3", "each"),
+        ("Peanuts", None, "ถั่วลิสง", "10", "g"),
+    ]:
+        assert (
+            client.post(
+                "/api/inventory",
+                headers=owner,
+                json={
+                    "name": name,
+                    "name_en": english,
+                    "name_th": thai,
+                    "quantity": quantity,
+                    "unit": unit,
+                    "location": "pantry",
+                },
+            ).status_code
+            == 201
+        )
+    removed = add_stock(client, owner, "Lime")
+    assert client.delete(f"/api/inventory/{removed}", headers=owner).status_code == 204
+    depleted = add_stock(client, owner, "Lemon")
+    assert client.post(
+        f"/api/inventory/{depleted}/events", headers=owner, json={"kind": "used", "quantity": "100"}
+    ).is_success
+    default = client.post(route, json=today, headers=owner).json()
+    assert default["status"] == "preview"
+    assert default["recipe_limit"] == 5
+    assert default["preferences"] == {
+        "servings": 2,
+        "dietary_styles": [],
+        "cuisines": [],
+        "nutrition_goal": None,
+        "max_total_minutes": None,
+        "difficulty": "any",
+        "foods_to_avoid": ["ถั่วลิสง"],
+        "equipment": ["Stove"],
+    }
+    assert {
+        (r["name_en"] or r["name"], r["quantity"], r["unit"]) for r in default["ingredients"]
+    } == {
+        ("Spinach", "250", "g"),
+        ("Spinach", "3", "each"),
+    }
+    override = {
+        "servings": 3,
+        "dietary_styles": ["Halal", "Gluten-free"],
+        "cuisines": ["Thai", "Indian"],
+        "nutrition_goal": "More fiber",
+        "max_total_minutes": 15,
+        "difficulty": "easy",
+        "foods_to_avoid": [],
+        "equipment": [],
+    }
+    result = client.post(route, headers=owner, json={**today, **override}).json()
+    assert result["preferences"] == override
+    assert len(result["ingredients"]) == 3
+    assert client.post(route, json=today, headers=owner).json() == default
+    assert (
+        client.post(route, json=today, headers=member).json()["preferences"]["foods_to_avoid"] == []
+    )
+    assert client.get("/api/menus", headers=owner).json() == []
+    empty = client.post(
+        route, headers=owner, json={**today, "foods_to_avoid": [" Spinach ", "peanuts"]}
+    )
+    assert empty.json()["ingredients"] == []
+    for invalid in (
+        {"servings": 0},
+        {"servings": 1.5},
+        {"max_total_minutes": 20},
+        {"difficulty": "expert"},
+        {"dietary_styles": ["  "]},
+    ):
+        assert client.post(route, headers=owner, json=invalid).status_code == 422

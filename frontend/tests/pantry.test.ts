@@ -97,7 +97,7 @@ test("menu eligibility includes undated and due-today stock and compares both la
   for (const name of [" GROUND  NUT ", " ถั่วลิสง "]) {
     const { fresh, eligible } = eligibleEntries(
       stock,
-      [{ id: "a", name }],
+      [name],
       "2026-06-10",
     );
     assert.equal(fresh.length, 2);
