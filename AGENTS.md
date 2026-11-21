@@ -2,7 +2,7 @@
 
 ## Project structure
 
-Smart Pantry is in the requirements stage. `README.md` describes the household workflow, first-release scope, and proposed architecture. `docs/requirements.md` defines the product rules and acceptance criteria. Update both when a scope change affects the overview and detailed behavior. The README proposes `src/ui/` for screens, `src/domain/` for business rules, `src/data/` for storage and recipes, and `tests/` for automated checks. These directories are planned.
+Fridgellio is in the requirements stage. `README.md` describes the household workflow, first-release scope, and proposed architecture. `docs/requirements.md` defines the product rules and acceptance criteria. Update both when a scope change affects the overview and detailed behavior. The planned monorepo has a Next.js frontend in `apps/web/` and a FastAPI backend in `apps/api/`. See `docs/backend-stack.md` for planned backend dependencies.
 
 ## Development and review
 
