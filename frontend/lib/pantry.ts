@@ -28,8 +28,9 @@ export type StockEvent = {
   id: string;
   actor_account_id: string;
   item_name: string;
-  kind: "added" | "used" | "discarded";
+  kind: "added" | "used" | "discarded" | "expired";
   quantity: string;
+  cost: string | null;
   unit: Unit;
   created_at: string;
 };

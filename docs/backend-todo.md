@@ -14,6 +14,7 @@
 - [x] Generate up to five pantry-only recipes with per-request preferences and compatible stock totals.
 - [x] Connect grocery photo analysis to OpenAI with typed bilingual suggestions.
 - [x] Track optional grocery prices and estimate proportional recipe costs.
+- [x] Compare monthly grocery usage with recorded expiry loss.
 - [x] Keep a typed menu-generation placeholder that returns `501`.
 
 ## API contract
@@ -39,6 +40,7 @@
 | `PATCH /api/equipment/{equipment_id}`, `DELETE /api/equipment/{equipment_id}` | Edit or remove owned equipment. |
 | `GET /api/barcodes/{code}` | Look up a product without writing inventory. Return code, name, and brands, with optional localized names and numeric `Quantity` and `Unit`. Include `X-Barcode-Source` for web results. Use an optional `language` override or the saved preference. |
 | `POST /api/barcodes/decode` | Accept one image in the multipart `photo` field and return the decoded digits as a JSON string. |
+| `GET /api/statistics` | Return one to twelve monthly buckets comparing normalized usage with groceries discarded after expiry. |
 | `POST /api/photos/analyze` | Validate one grocery image and return structured bilingual OpenAI suggestions for review. |
 | `POST /api/menus` | Reserve an authenticated route for future AI work. Return `501` with a machine-readable error. |
 

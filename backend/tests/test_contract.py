@@ -13,6 +13,7 @@ def test_schema_and_auth():
             "scheme": "bearer",
         }
         assert spec["paths"]["/api/menus"]["post"]["security"] == [{"AccountSession": []}]
+        assert spec["paths"]["/api/statistics"]["get"]["security"] == [{"AccountSession": []}]
         assert "security" not in spec["paths"]["/api/auth/login"]["post"]
         assert "security" not in spec["paths"]["/api/auth/register"]["post"]
         assert "501" in spec["paths"]["/api/menus"]["post"]["responses"]

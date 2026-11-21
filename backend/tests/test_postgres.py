@@ -341,6 +341,34 @@ def test_concurrent_deduction_and_retry(client, household_accounts):
     assert client.get("/api/inventory-history", headers=other).json() == []
 
 
+def test_statistics_separate_usage_from_expiry_loss(client, household_accounts):
+    owner, _, _ = household_accounts
+    assert client.post("/api/household", headers=owner).status_code == 201
+    used = add_stock(client, owner, "Rice", "500", "2026-12-01", price="80.00")
+    expired = add_stock(client, owner, "Milk", "1", "2026-10-31", price="45.00")
+    ordinary = add_stock(client, owner, "Flour", "200", "2026-12-01")
+    for entry, kind, quantity in (
+        (used, "used", "125"),
+        (expired, "discarded", "1"),
+        (ordinary, "discarded", "50"),
+    ):
+        response = client.post(
+            f"/api/inventory/{entry}/events?today=2026-11-21",
+            headers=owner,
+            json={"kind": kind, "quantity": quantity},
+        )
+        assert response.is_success, response.json()
+    history = client.get("/api/inventory-history", headers=owner).json()
+    assert any(event["kind"] == "expired" for event in history)
+    statistics = client.get("/api/statistics?today=2026-11-21&months=1", headers=owner).json()[
+        "months"
+    ][0]
+    assert statistics["used"] == {"each": "0", "g": "125", "ml": "0"}
+    assert statistics["expired"] == {"each": "0", "g": "1", "ml": "0"}
+    assert statistics["used_cost"] == "20.00"
+    assert statistics["expired_cost"] == "45.00"
+
+
 def test_profile_updates_only_the_signed_in_account(client, household_accounts):
     owner, member, _ = household_accounts
     path = "/api/preferences/profile"

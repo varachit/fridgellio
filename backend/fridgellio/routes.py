@@ -42,12 +42,14 @@ from .schemas import (
     count_is_valid,
     expiry_bounds,
 )
+from .statistics import router as statistics_router
 
 api = APIRouter(prefix="/api", responses=responses(401, 403, 422, 503))
 api.include_router(auth_router)
 api.include_router(households_router)
 api.include_router(preferences_router)
 api.include_router(recommendations_router)
+api.include_router(statistics_router)
 Today = Annotated[CalendarDate | None, Query(description="Client's local calendar date")]
 PageSize = Annotated[int, Query(ge=1, le=200)]
 PageOffset = Annotated[int, Query(ge=0)]
@@ -213,6 +215,13 @@ async def record_event(
     entry = await owned_stock(
         session, member.household_id, entry_id, lock=True, include_removed=True
     )
+    event_kind = (
+        "expired"
+        if body.kind == "discarded"
+        and entry.expiry_date is not None
+        and entry.expiry_date < local_day(today)
+        else body.kind
+    )
     if idempotency_key is not None:
         previous = await session.scalar(
             select(InventoryEvent).where(
@@ -222,7 +231,8 @@ async def record_event(
             )
         )
         if previous is not None:
-            if (previous.kind, previous.quantity) != (body.kind, body.quantity):
+            previous_kind = "discarded" if previous.kind == "expired" else previous.kind
+            if (previous_kind, previous.quantity) != (body.kind, body.quantity):
                 raise ApiError(
                     409, "idempotency_conflict", "This request key has already been used."
                 )
@@ -236,6 +246,7 @@ async def record_event(
         raise ApiError(404, "stock_not_found", "The stock entry was not found.")
     if not count_is_valid(entry.unit, body.quantity):
         raise ApiError(422, "invalid_count", "Quantity must be a whole number for each.")
+    original_price = entry.price
     remaining = (
         await session.execute(
             update(StockEntry)
@@ -259,12 +270,15 @@ async def record_event(
     if remaining is None:
         raise ApiError(409, "insufficient_stock", "The deduction exceeds available stock.")
     entry.quantity, entry.price = remaining
+    event_cost = original_price - (entry.price or 0) if original_price is not None else None
     event = InventoryEvent(
         stock_id=entry.id,
         actor_account_id=member.account_id,
         item_name=entry.name,
         unit=entry.unit,
-        **body.model_dump(),
+        kind=event_kind,
+        quantity=body.quantity,
+        cost=event_cost,
         idempotency_key=idempotency_key,
     )
     session.add(event)

@@ -22,6 +22,7 @@ import {
   X,
   UsersRound,
   ArrowLeft,
+  ChartNoAxesCombined,
 } from "lucide-react";
 import { api, ApiError, errorCode } from "@/lib/api";
 import {
@@ -56,12 +57,21 @@ import { Meals } from "./meals";
 import { AccountMenu } from "./account-menu";
 import { ProfileSettings } from "./profile-settings";
 import { ExpiryAlert, ExpiryNotifications } from "./expiry-notifications";
+import { GroceryStatistics } from "./statistics";
 type Account = Session["user"];
-type Page = "pantry" | "soon" | "meals" | "history" | "members" | "settings";
+type Page =
+  | "pantry"
+  | "soon"
+  | "meals"
+  | "statistics"
+  | "history"
+  | "members"
+  | "settings";
 const pages: Page[] = [
   "pantry",
   "soon",
   "meals",
+  "statistics",
   "history",
   "members",
   "settings",
@@ -273,11 +283,15 @@ function Workspace({
   const menu = useRef<HTMLDialogElement>(null);
   const content = useRef<HTMLElement>(null);
   const [reviewExpired, setReviewExpired] = useState(false);
-  const [mealResult, setMealResult] = useState<RecommendationPreview | null>(null);
+  const [mealResult, setMealResult] = useState<RecommendationPreview | null>(
+    null,
+  );
   useEffect(() => {
     const sync = () => {
       setPage(hashPage());
-      setMealResult((result) => (result?.status === "generated" ? result : null));
+      setMealResult((result) =>
+        result?.status === "generated" ? result : null,
+      );
       menu.current?.close();
       setAdding(false);
       setNotice(false);
@@ -332,11 +346,17 @@ function Workspace({
   const refreshStock = () => {
     void client.invalidateQueries({ queryKey: ["inventory"] });
     void client.invalidateQueries({ queryKey: historyQuery.queryKey });
+    void client.invalidateQueries({ queryKey: ["statistics"] });
   };
   const links = [
     { page: "pantry", icon: Archive, title: t("Inventory", "คลังอาหาร") },
     { page: "soon", icon: CalendarClock, title: t("Use soon", "ควรใช้เร็ว ๆ นี้") },
     { page: "meals", icon: ChefHat, title: t("Meal ideas", "ไอเดียมื้ออาหาร") },
+    {
+      page: "statistics",
+      icon: ChartNoAxesCombined,
+      title: t("Statistics", "สถิติ"),
+    },
     { page: "history", icon: History, title: t("History", "ประวัติ") },
     {
       page: "members",
@@ -490,6 +510,10 @@ function Workspace({
                     "Preview a request for up to 5 recipes using what you have.",
                     "ดูตัวอย่างคำขอแนะนำสูงสุด 5 เมนูจากวัตถุดิบที่มีในครัว",
                   ),
+                  statistics: t(
+                    "Compare groceries your household used with expiry loss.",
+                    "เปรียบเทียบของสดที่ครัวเรือนใช้จริงกับที่สูญเสียเพราะหมดอายุ",
+                  ),
                   settings: t(
                     "Manage your preferences and shared kitchen.",
                     "จัดการการตั้งค่าส่วนตัวและครัวส่วนรวม",
@@ -520,6 +544,8 @@ function Workspace({
         )}
         {page === "history" ? (
           <HistoryView />
+        ) : page === "statistics" ? (
+          <GroceryStatistics day={day} />
         ) : page === "members" ? (
           <div className="panels">
             <HouseholdMembers accountId={account.id} />
