@@ -8,13 +8,15 @@ Create an account and start a household, or join one with an invitation code. Ev
 
 | Where to go | What you can do |
 | --- | --- |
-| **Inventory** | Add groceries by hand, scan a barcode or type its digits, or take or upload a photo for AI suggestions. Review the item before saving its quantity, unit, storage location, and optional expiry date and purchase price in Thai baht. Search and filter the pantry to see what you already have. |
+| **Inventory** | Scan a store receipt, paste a shopping list, or photograph several groceries. Review the items together and save the trip once. You can also enter one purchase by hand or barcode. Review the quantity, unit, and storage location. You can also record the price paid in Thai baht and choose an expiry date from the calendar or type it as `YYYY-MM-DD`. Search and filter the pantry to see what you already have. |
 | **Use soon** | See items due today or within the next three days, sorted with the closest expiry first. Use the notification bell or the inventory alert to review past-date items. |
 | **Meal ideas** | Get up to five recipes from eligible pantry stock. Choose servings, cooking time, equipment, foods to avoid, and other preferences. Each recipe appears below **Plan this meal** with its name, a short description, and an AI illustration. Open a card to see ingredient quantities, equipment, and cooking steps, even while its illustration loads. |
 | **Estimated cost** | See the estimated total ingredient cost for a recipe based on the quantities used and the prices saved in your pantry. If only some ingredients have prices, the recipe details label the estimate as partial. |
 | **History** | Record how much you used or discarded from an inventory item. See changes to the shared pantry and who recorded them. |
 | **Statistics** | Compare groceries used with groceries discarded after expiry across the latest six calendar months. See the recorded value in Thai baht for groceries with saved prices. |
 | **Household and Settings** | Invite people to share the pantry, set household cooking equipment, and manage your personal foods to avoid, language, and profile. You can adjust equipment or exclusions for a single meal request. |
+
+For the evidence behind batch entry, the model evaluation command, and the two-week household pilot, see the [grocery adoption plan](docs/grocery-adoption.md).
 
 **Try it first.** Add a few ingredients and give one an expiry date of today. Check **Use soon**, then open **Meal ideas** and choose **Generate menu**. After cooking, open the recipe card and select **I made this menu**. Fridgellio deducts the listed quantities from the earliest-expiring stock first. If an ingredient runs short, add stock and retry. Check **History** to see the quantities used.
 
@@ -74,7 +76,7 @@ Uses all **150 g of mushrooms due today** and matches your preference for spicy 
 
 If a price needed for a total is missing, show **Price unknown** for that total.
 
-The roadmap also includes rewards based on improvements against a household’s own baseline, receipt and whole-fridge photo scanning, and reminders outside the app.
+The roadmap also includes rewards based on improvements against a household’s own baseline, whole-fridge photo scanning, and reminders outside the app.
 
 ## Hackathon submission and declarations
 
@@ -94,7 +96,7 @@ Submit once per team via Google Form by **5:00 p.m. ICT on November 21, 2026**, 
 | `assets/brand/` | Lucide-derived SVG logo variants and usage guidance |
 | `frontend/experimental/` | Standalone Three.js illustration and Framer Motion UI preview, with exported GLB models |
 
-FastAPI stores shared inventory, optional grocery prices in Thai baht, cooking equipment, and each member's private settings in PostgreSQL. Recipe recommendations use saved prices to show proportional cost estimates with coverage labels. Grocery photos are analyzed with OpenAI to produce editable bilingual item suggestions. Barcode lookup checks verified corrections by exact barcode, then uses OpenAI web search when configured, with Open Food Facts as a fallback. OpenAI also generates up to five bilingual recipe recommendations when configured.
+FastAPI stores shared inventory, optional grocery prices in Thai baht, cooking equipment, and each member's private settings in PostgreSQL. Recipe recommendations use saved prices to show proportional cost estimates with coverage labels. OpenAI reads grocery photos and store receipts into editable English and Thai suggestions. Receipt review shows the printed product wording, supported quantities, and item totals in Thai baht. Barcode lookup checks verified corrections by exact barcode, then uses OpenAI web search when configured, with Open Food Facts as a fallback. OpenAI also generates up to five bilingual recipe recommendations when configured.
 
 **Scan barcode** sends camera stills one at a time to `POST /api/barcodes/decode` as multipart `photo` fields. Once the endpoint returns barcode digits such as `"8851234567898"`, the camera stops and the frontend sends those digits to `GET /api/barcodes/{code}`.
 
@@ -109,7 +111,7 @@ uv run alembic upgrade head
 uv run uvicorn fridgellio.main:create_app --factory --reload --no-access-log
 ```
 
-Open Swagger UI at `http://127.0.0.1:8000/docs`. Register with `POST /api/auth/register` and supply `username`, `password`, `first_name`, and `last_name`. Sign in to an existing account with `POST /api/auth/login`. Copy the returned `token` into Swagger’s **Authorize** field to call protected routes. The household owner can issue single-use invites that expire after 24 hours and revoke them before use. Send one JPEG, PNG, or WebP file in the `photo` field to `POST /api/photos/analyze` for editable grocery suggestions. Use `POST /api/menus/recommendations` with `generate: true` to request recipe recommendations. Set `OPENAI_API_KEY` and restart the backend to enable both AI workflows.
+Open Swagger UI at `http://127.0.0.1:8000/docs`. Register with `POST /api/auth/register` and supply `username`, `password`, `first_name`, and `last_name`. Sign in to an existing account with `POST /api/auth/login`. Copy the returned `token` into Swagger’s **Authorize** field to call protected routes. The household owner can issue single-use invites that expire after 24 hours and revoke them before use. Send one JPEG, PNG, or WebP file in the `photo` field to `POST /api/photos/analyze` for editable grocery suggestions or to `POST /api/receipts/analyze` for receipt lines. Use `POST /api/menus/recommendations` with `generate: true` to request recipe recommendations. Set `OPENAI_API_KEY` and restart the backend to enable the AI workflows.
 
 From `backend/`, run `uv run ruff check .`, `uv run ruff format --check .`, and `uv run pytest`. Set `FRIDGELLIO_TEST_DATABASE_URL` to also run the PostgreSQL tests. The test role needs permission to create a temporary schema.
 

@@ -1,0 +1,71 @@
+[
+  {
+    "case": "bilingual-baht-receipt",
+    "source": "receipt",
+    "image": "grocery-receipt-demo.png",
+    "expected": [
+      {
+        "name": {
+          "en": "Eggs",
+          "th": "ไข่ไก่"
+        },
+        "printed_name": "ไข่ไก่ / EGGS 6 PCS",
+        "quantity": "6",
+        "unit": "each",
+        "price": "42.00"
+      },
+      {
+        "name": {
+          "en": "Milk",
+          "th": "นม"
+        },
+        "printed_name": "MILK 1 L",
+        "quantity": "2",
+        "unit": "l",
+        "price": "76.00"
+      },
+      {
+        "name": {
+          "en": "Basil",
+          "th": "โหระพา"
+        },
+        "printed_name": "BASIL",
+        "quantity": null,
+        "unit": null,
+        "price": "9.00"
+      }
+    ],
+    "baseline": [
+      {
+        "name": {
+          "en": "Eggs (6 pcs)",
+          "th": "ไข่ไก่ 6 ฟอง"
+        },
+        "printed_name": "ไข่ไ่ก่ / EGGS 6 PCS",
+        "quantity": "6",
+        "unit": "each",
+        "price": "42.00"
+      },
+      {
+        "name": {
+          "en": "Milk 1 L (2 pack)",
+          "th": "นม 1 ลิตร (2 แพ็ค)"
+        },
+        "printed_name": "MILK 1 L",
+        "quantity": "2",
+        "unit": "l",
+        "price": "76.00"
+      },
+      {
+        "name": {
+          "en": "Basil",
+          "th": "โหระพา"
+        },
+        "printed_name": "BASIL",
+        "quantity": null,
+        "unit": null,
+        "price": "9.00"
+      }
+    ]
+  }
+]

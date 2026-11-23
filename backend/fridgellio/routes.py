@@ -2,7 +2,8 @@ from datetime import UTC, date, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, File, Header, Path, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Header, Path, Query, Request, Response, UploadFile
+from openai import AsyncOpenAI
 from sqlalchemy import case, or_, select, update
 from starlette.concurrency import run_in_threadpool
 
@@ -16,11 +17,12 @@ from .barcodes import (
     verified_barcode,
 )
 from .cooking import router as cooking_router
-from .data import CurrentAccount, Member, Session, owned_stock, stock_view
+from .data import CurrentAccount, Member, Session, owned_stock, record_additions, stock_view
 from .errors import ApiError, responses
+from .grocery_batches import router as batch_router
 from .households import router as households_router
 from .models import Equipment, InventoryEvent, Menu, StockEntry
-from .photos import analyze_grocery_photo
+from .photos import analyze_grocery_photo, analyze_receipt
 from .preferences import router as preferences_router
 from .recommendations import router as recommendations_router
 from .schemas import (
@@ -37,6 +39,7 @@ from .schemas import (
     Location,
     MenuRequest,
     PhotoAnalysis,
+    ReceiptAnalysis,
     StockCreate,
     StockPatch,
     StockView,
@@ -47,6 +50,7 @@ from .statistics import router as statistics_router
 
 api = APIRouter(prefix="/api", responses=responses(401, 403, 422, 503))
 api.include_router(auth_router)
+api.include_router(batch_router)
 api.include_router(households_router)
 api.include_router(preferences_router)
 api.include_router(recommendations_router)
@@ -114,19 +118,7 @@ async def create_stock(
     session: Session,
     today: Today = None,
 ) -> StockView:
-    entry = StockEntry(household_id=member.household_id, **body.model_dump())
-    session.add(entry)
-    await session.flush()
-    session.add(
-        InventoryEvent(
-            stock_id=entry.id,
-            actor_account_id=member.account_id,
-            item_name=entry.name,
-            kind="added",
-            quantity=entry.quantity,
-            unit=entry.unit,
-        )
-    )
+    (entry,) = await record_additions(session, member, [body])
     await session.commit()
     return stock_view(entry, local_day(today))
 
@@ -400,23 +392,7 @@ async def barcode(
     return await lookup_barcode(request.app.state.barcode_client, code, locale)
 
 
-@api.post(
-    "/photos/analyze",
-    tags=["Grocery intake"],
-    responses={
-        **responses(429, 502, 503),
-        413: {"description": "The multipart request exceeds 8 MiB."},
-    },
-    summary="Analyze groceries in a photo",
-    max_body_size=8 * 1024 * 1024,
-    form_limits={"max_files": 1, "max_fields": 0},
-)
-async def analyze_photo(
-    photo: Annotated[UploadFile, File(description="A JPEG, PNG, or WebP grocery image")],
-    request: Request,
-    account: CurrentAccount,
-    session: Session,
-) -> PhotoAnalysis:
+async def image_reader(request: Request, account: CurrentAccount, session: Session) -> AsyncOpenAI:
     client = request.app.state.openai_client
     if client is None:
         await session.rollback()
@@ -425,7 +401,27 @@ async def analyze_photo(
     await session.commit()
     if not allowed:
         raise ApiError(429, "photo_rate_limited", "Photo analysis is busy. Try again shortly.")
+    return client
+
+
+ImageReader = Annotated[AsyncOpenAI, Depends(image_reader)]
+GroceryImage = Annotated[UploadFile, File(description="A JPEG, PNG, or WebP image")]
+image_upload = {
+    "tags": ["Grocery intake"],
+    "responses": {**responses(429, 502, 503), 413: {"description": "The upload exceeds 8 MiB."}},
+    "max_body_size": 8 * 1024 * 1024,
+    "form_limits": {"max_files": 1, "max_fields": 0},
+}
+
+
+@api.post("/photos/analyze", summary="Analyze groceries in a photo", **image_upload)
+async def analyze_photo(photo: GroceryImage, client: ImageReader) -> PhotoAnalysis:
     return await analyze_grocery_photo(client, await photo.read())
+
+
+@api.post("/receipts/analyze", summary="Read grocery lines from a receipt", **image_upload)
+async def read_receipt(photo: GroceryImage, client: ImageReader) -> ReceiptAnalysis:
+    return await analyze_receipt(client, await photo.read())
 
 
 @api.get("/menus", tags=["Menus"])

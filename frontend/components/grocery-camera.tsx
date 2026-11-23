@@ -140,10 +140,12 @@ function PhotoCamera({
 }
 
 export function GroceryPhoto({
+  receipt,
   analyze,
   busy,
   setError,
 }: {
+  receipt: boolean;
   analyze: (photo: File) => void;
   busy: boolean;
   setError: (code: string | null) => void;
@@ -167,12 +169,29 @@ export function GroceryPhoto({
   }
 
   return (
-    <fieldset disabled={busy} aria-label={t("Grocery photo", "ภาพถ่ายของสด")}>
+    <fieldset
+      disabled={busy}
+      aria-label={
+        receipt
+          ? t("Receipt image", "ภาพใบเสร็จ")
+          : t("Grocery photo", "ภาพถ่ายของสด")
+      }
+    >
+      {receipt && (
+        <p className="muted">
+          {t(
+            "Include the item lines and currency. Read receipt sends this image to OpenAI for reviewable grocery suggestions.",
+            "ถ่ายให้เห็นรายการสินค้าและสกุลเงิน เมื่อกดอ่านใบเสร็จ ระบบจะส่งภาพให้ OpenAI เพื่ออ่านรายการให้คุณตรวจสอบ",
+          )}
+        </p>
+      )}
       {cameraOpen ? (
         <PhotoCamera
           taken={(blob) =>
             preview(
-              new File([blob], "groceries.jpg", { type: blob.type }),
+              new File([blob], receipt ? "receipt.jpg" : "groceries.jpg", {
+                type: blob.type,
+              }),
               true,
             )
           }
@@ -188,7 +207,11 @@ export function GroceryPhoto({
             <img
               className="camera-preview"
               src={photo.url}
-              alt={t("Grocery photo preview", "ตัวอย่างภาพถ่ายของสด")}
+              alt={
+                receipt
+                  ? t("Receipt preview", "ตัวอย่างใบเสร็จ")
+                  : t("Grocery photo preview", "ตัวอย่างภาพถ่ายของสด")
+              }
               onError={() => {
                 setPhoto(null);
                 setError("invalid_photo");
@@ -202,9 +225,13 @@ export function GroceryPhoto({
                 className="primary"
                 onClick={() => analyze(photo.file)}
               >
-                {busy
-                  ? t("Analyzing photo…", "กำลังวิเคราะห์ภาพ…")
-                  : t("Analyze photo", "วิเคราะห์รูป")}
+                {receipt
+                  ? busy
+                    ? t("Reading receipt…", "กำลังอ่านใบเสร็จ…")
+                    : t("Read receipt", "อ่านใบเสร็จ")
+                  : busy
+                    ? t("Analyzing photo…", "กำลังวิเคราะห์ภาพ…")
+                    : t("Analyze photo", "วิเคราะห์รูป")}
               </button>
             )}
             <button

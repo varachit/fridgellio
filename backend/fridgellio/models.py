@@ -174,3 +174,20 @@ class Menu(Base):
     account_id: Mapped[UUID] = mapped_column(ForeignKey("accounts.id"), index=True)
     dishes: Mapped[list[dict]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class GroceryBatch(Base):
+    __tablename__ = "grocery_batches"
+
+    household_id: Mapped[UUID] = mapped_column(ForeignKey("households.id"), primary_key=True)
+    account_id: Mapped[UUID] = mapped_column(ForeignKey("accounts.id"), primary_key=True)
+    request_id: Mapped[UUID] = mapped_column(primary_key=True)
+    digest: Mapped[str] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(8))
+    version: Mapped[str] = mapped_column(String(32))
+    offered: Mapped[int]
+    removed: Mapped[int]
+    corrected: Mapped[int]
+    saved: Mapped[int]
+    elapsed_seconds: Mapped[int]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

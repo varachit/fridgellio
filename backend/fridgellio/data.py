@@ -12,8 +12,15 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .errors import ApiError
-from .models import Account, AccountCredential, AccountSession, HouseholdMembership, StockEntry
-from .schemas import StockView, expiry_status
+from .models import (
+    Account,
+    AccountCredential,
+    AccountSession,
+    HouseholdMembership,
+    InventoryEvent,
+    StockEntry,
+)
+from .schemas import StockCreate, StockView, expiry_status
 
 bearer = HTTPBearer(auto_error=False, scheme_name="AccountSession")
 
@@ -125,3 +132,25 @@ def stock_view(entry: StockEntry, today: date) -> StockView:
         expiry_date=entry.expiry_date,
         expiry_status=expiry_status(entry.expiry_date, today),
     )
+
+
+async def record_additions(
+    session: AsyncSession, member: HouseholdMembership, items: list[StockCreate]
+) -> list[StockEntry]:
+    entries = [StockEntry(household_id=member.household_id, **item.model_dump()) for item in items]
+    session.add_all(entries)
+    await session.flush()
+    session.add_all(
+        [
+            InventoryEvent(
+                stock_id=entry.id,
+                actor_account_id=member.account_id,
+                item_name=entry.name,
+                kind="added",
+                quantity=entry.quantity,
+                unit=entry.unit,
+            )
+            for entry in entries
+        ]
+    )
+    return entries

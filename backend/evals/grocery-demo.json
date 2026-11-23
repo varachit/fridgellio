@@ -1,0 +1,71 @@
+[
+  {
+    "case": "demo-visible-eggs-and-undated-herbs",
+    "expected": [
+      {
+        "name": {
+          "en": "Eggs",
+          "th": "ไข่"
+        },
+        "quantity": "6",
+        "unit": "each",
+        "expiry_date": null
+      },
+      {
+        "name": {
+          "en": "Basil",
+          "th": "กะเพรา"
+        },
+        "quantity": null,
+        "unit": null,
+        "expiry_date": null
+      }
+    ],
+    "baseline": [
+      {
+        "name": {
+          "en": "Eggs",
+          "th": "ไข่"
+        },
+        "quantity": "6",
+        "unit": "each",
+        "expiry_date": null
+      },
+      {
+        "name": {
+          "en": "Basil",
+          "th": "กะเพรา"
+        },
+        "quantity": null,
+        "unit": null,
+        "expiry_date": "2026-12-01"
+      }
+    ],
+    "candidate": [
+      {
+        "name": {
+          "en": "Eggs",
+          "th": "ไข่"
+        },
+        "quantity": "6",
+        "unit": "each",
+        "expiry_date": null
+      },
+      {
+        "name": {
+          "en": "Basil",
+          "th": "กะเพรา"
+        },
+        "quantity": null,
+        "unit": null,
+        "expiry_date": null
+      }
+    ]
+  },
+  {
+    "case": "demo-empty-counter",
+    "expected": [],
+    "baseline": [],
+    "candidate": []
+  }
+]

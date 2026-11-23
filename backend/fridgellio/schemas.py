@@ -273,11 +273,10 @@ class IngredientAmount(InputModel):
         return format(value.normalize(), "f")
 
 
-class PhotoSuggestion(BaseModel):
+class GrocerySuggestion(BaseModel):
     name: LocalizedText
     quantity: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=6)
     unit: Unit | None
-    expiry_date: date | None
 
     @model_validator(mode="after")
     def validate_measurement(self):
@@ -290,6 +289,21 @@ class PhotoSuggestion(BaseModel):
         ):
             raise ValueError("Quantity must be a whole number for each")
         return self
+
+
+class PhotoSuggestion(GrocerySuggestion):
+    expiry_date: date | None
+
+
+class ReceiptSuggestion(GrocerySuggestion):
+    printed_name: Name
+    price: Price | None
+
+
+class ReceiptAnalysis(BaseModel):
+    currency: Literal["THB", "other", "unknown"]
+    suggestions: list[ReceiptSuggestion]
+    has_more: bool
 
 
 class PhotoAnalysis(BaseModel):

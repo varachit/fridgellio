@@ -13,6 +13,7 @@
 - [x] Decode numeric barcodes from uploaded camera stills.
 - [x] Generate up to five pantry-only recipes with per-request preferences and compatible stock totals.
 - [x] Connect grocery photo analysis to OpenAI with typed bilingual suggestions.
+- [x] Save reviewed lists, receipts and photos in one transaction, suggest household storage, and measure the intake workflow. See the [adoption plan](grocery-adoption.md).
 - [x] Track optional grocery prices and estimate proportional recipe costs.
 - [x] Compare monthly grocery usage with recorded expiry loss.
 - [x] Keep a typed menu-generation placeholder that returns `501`.
@@ -30,6 +31,9 @@
 | `GET /api/household`, `POST /api/household` | Read the current membership or create a household. |
 | `POST /api/household/invitations`, `POST /api/household/join` | Issue and accept a single-use invitation. |
 | `GET /api/inventory`, `POST /api/inventory` | List active stock or save a confirmed entry. Listing supports name search, location, expiry, and local calendar date. |
+| `POST /api/inventory/batch-starts` | Record the selected list, receipt or photo method with a UUID Idempotency-Key. Reopening a different method gets a new key. |
+| `POST /api/inventory/location-hints` | Return previously confirmed household storage by requested name for up to 40 names. |
+| `POST /api/inventory/batches` | Save 1–40 reviewed entries and their addition events atomically with the same UUID Idempotency-Key. A matching retry returns the original count. A conflicting payload returns 409. |
 | `PATCH /api/inventory/{entry_id}`, `DELETE /api/inventory/{entry_id}` | Edit or remove an owned entry. Keep recorded history. |
 | `GET /api/inventory/{entry_id}/events`, `POST /api/inventory/{entry_id}/events` | Read history or record a usage or discard. |
 | `GET /api/inventory-history` | Read household usage and discard events, including entries that were depleted or removed. |
@@ -42,6 +46,7 @@
 | `GET /api/barcodes/{code}` | Look up a product without writing inventory. Return code, name, and brands, with optional localized names and numeric `Quantity` and `Unit`. Include `X-Barcode-Source` for web results. Use an optional `language` override or the saved preference. |
 | `POST /api/barcodes/decode` | Accept one image in the multipart `photo` field and return the decoded digits as a JSON string. |
 | `GET /api/statistics` | Return one to twelve monthly buckets comparing normalized usage with groceries discarded after expiry. |
+| `POST /api/receipts/analyze` | Accept an image in the `photo` field. Return receipt currency, up to 40 editable grocery lines and a `has_more` flag. |
 | `POST /api/photos/analyze` | Validate one grocery image and return structured bilingual OpenAI suggestions for review. |
 | `POST /api/menus` | Reserve an authenticated route for future AI work. Return `501` with a machine-readable error. |
 
