@@ -92,7 +92,7 @@ Use subtle borders and whitespace to establish hierarchy. Avoid heavy shadows on
 
 ## Framer Motion
 
-Use Framer Motion for component animations through the current `motion` package, importing from `motion/react` in React as described in the [Motion for React installation guide](https://motion.dev/docs/react-installation). Motion for React is the current name of Framer Motion. The standalone [illustration preview](../frontend/experimental/README.md) installs a pinned Motion dependency and uses its browser JavaScript API for UI animations. For React application integration, add the dependency in `frontend/` with `pnpm add motion`.
+The shared dialog and its presence transitions import from `framer-motion`. The dropdowns and expiry calendar use the same pinned version through `motion/react`. The standalone illustration preview uses Motion’s browser JavaScript API. [Motion for React installation guide](https://motion.dev/docs/react-installation) · [Illustration preview](../frontend/experimental/README.md)
 
 | Token | Value | Usage |
 | --- | --- | --- |
@@ -109,8 +109,9 @@ Set `MotionConfig reducedMotion="user"` in the animation provider. Use `useReduc
 | --- | --- | --- |
 | Meal card | Opacity 0 → 1 and y 8 → 0 over 180 ms | Stagger by 40 ms only for a new result set; do not replay on input changes |
 | Primary button | `whileTap` scale 0.98 over 120 ms | Preserve layout dimensions; do not enlarge on hover |
+| Dropdown and expiry calendar | Fade and scale in over 180 ms, fade out over 120 ms | Closing immediately removes the panel from keyboard and pointer interaction. Reduced motion makes both transitions instant. |
 | Ingredient details | `AnimatePresence` with opacity over 180 ms | Use a button with `aria-expanded`; keep hidden controls out of the Tab order |
-| Sheet / dialog | Opacity and y 16 → 0 over 240 ms | Use a project-built dialog component that manages focus, Escape, and modal semantics |
+| Sheet / dialog | Fade and rise 16 px over 240 ms on entry, fade and lower 8 px over 140 ms on exit | Keep the page inert until the exit finishes. Reduced motion makes both transitions instant. |
 | Save confirmation | Text fades in over 120 ms | Announce through a live region without automatically moving focus |
 
 Use `AnimatePresence` with stable ID-based keys for exit animations. Do not use array indexes as keys for inventory or meals. Avoid animated reranking while users are reading, celebration animations, and spinning icons while reading recipes. During AI generation, show “Finding meals from your pantry…” without invented progress percentages or time estimates.
@@ -150,6 +151,12 @@ Icons next to text use `aria-hidden="true"`. Icon-only buttons need an accessibl
 
 ## Component patterns
 
+### Dialogs
+
+The shared dialog centers on desktop and becomes a bottom sheet at widths up to 600 px. Use the compact size for confirmations, standard for forms, and reading for recipes. The heading and close button stay in view while the content scrolls. [Desktop grocery form](screenshots/modal-desktop.png) · [Mobile grocery form](screenshots/modal-mobile.png)
+
+Opening a dialog focuses its title. Closing returns focus to the opener, or to the main content when a deletion removes the opener. Escape closes an open picker first. Grocery forms require an explicit dismissal so an outside tap preserves the draft. Recipe details and removal confirmations also accept a backdrop tap. Pending operations keep the dialog open.
+
 ### Custom components only
 
 Build every UI component within the project and style it with these design tokens. Do not use browser-native widget interfaces or prebuilt component libraries. This includes buttons, text fields, quantity steppers, selection controls, dropdowns, comboboxes, date pickers, tooltips, tabs, sheets, dialogs, and notifications. Use Lucide for icons and Framer Motion for animation.
@@ -159,6 +166,8 @@ This rule concerns the component implementation and visible UI. Keep semantic HT
 | Browser-native UI to avoid | Project-built replacement | Required behavior |
 | --- | --- | --- |
 | Native `select` popup | Custom Select or Combobox | Accessible name, expanded state, arrow-key navigation, selection, Escape, and focus restoration |
+| Native checkbox | Themed checkbox | Each option has its own tab stop. Space or a tap toggles its checkmark independently of the other options. |
+| Native radio button | Themed radio group | One tab stop per group. Arrow keys move focus and selection, wrapping at either end. A filled dot identifies the selected option. |
 | Native date input picker | Custom DatePicker with a text-entry alternative | Calendar keyboard navigation, clear date format, date validation, and no invented dates |
 | Native number-input spinner | Custom QuantityInput with stepper buttons | Numeric text entry, accessible increase/decrease labels, and unit-specific validation |
 | Browser `alert()`, `confirm()`, or `prompt()` | Custom Dialog or confirmation sheet | Accessible title, focus containment, Escape handling, and return focus |

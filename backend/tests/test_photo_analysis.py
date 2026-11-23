@@ -9,7 +9,7 @@ from PIL import Image
 from pydantic import ValidationError
 
 from fridgellio.errors import ApiError
-from fridgellio.photos import analyze_grocery_photo, image_data_url
+from fridgellio.photos import analyze_grocery_photo, analyze_receipt, image_data_url
 from fridgellio.schemas import PhotoSuggestion
 
 
@@ -126,3 +126,53 @@ def test_rejects_incomplete_or_invalid_measurements(measurement):
                 **measurement,
             }
         )
+
+
+@pytest.mark.parametrize(
+    ("currency", "saved_price"), [("THB", "76.00"), ("other", None), ("unknown", None)]
+)
+def test_reads_receipt_with_quantity_and_line_price(currency, saved_price):
+    def respond(request):
+        body = json.loads(request.content)
+        assert body["model"] == "gpt-5-mini" and body["store"] is False
+        assert body["input"][0]["content"][1]["detail"] == "high"
+        schema = body["text"]["format"]["schema"]
+        fields = schema["$defs"]["ReceiptSuggestion"]["properties"]
+        assert "printed_name" in fields and "price" in fields and "expiry_date" not in fields
+        row = {
+            "name": {"en": "Milk", "th": "นม"},
+            "printed_name": "MILK 1L",
+            "price": "76.00",
+            "quantity": "2",
+            "unit": "l",
+        }
+        result = {"currency": currency, "suggestions": [row] * 41, "has_more": False}
+        return httpx.Response(
+            200,
+            json={
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {"type": "output_text", "text": json.dumps(result), "annotations": []}
+                        ],
+                    }
+                ]
+            },
+        )
+
+    async def check():
+        async with AsyncOpenAI(
+            api_key="test", http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        ) as client:
+            result = await analyze_receipt(client, photo_bytes())
+        assert result.has_more and len(result.suggestions) == 40
+        assert result.suggestions[0].model_dump(mode="json") == {
+            "name": {"en": "Milk", "th": "นม"},
+            "printed_name": "MILK 1L",
+            "price": saved_price,
+            "quantity": "2",
+            "unit": "l",
+        }
+
+    asyncio.run(check())

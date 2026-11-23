@@ -1,20 +1,36 @@
 "use client";
 import { useEffectEvent, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { PencilLine, Camera, ScanBarcode } from "lucide-react";
+import {
+  PencilLine,
+  ShoppingBasket,
+  Camera,
+  List,
+  ReceiptText,
+  ScanBarcode,
+} from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import {
   locations,
   units,
-  validDate,
-  quantityError,
-  priceError,
   packageMeasurement,
   type Stock,
   type Unit,
   type Location,
   type Localized,
 } from "@/lib/pantry";
+import {
+  blank,
+  draftErrors,
+  maxBatch,
+  payload,
+  readGroceryList,
+  type Draft,
+  type BatchSource,
+} from "@/lib/grocery-intake";
+import { BatchReview } from "./batch-review";
+import { DateField } from "./date-field";
+import { SelectField } from "./select-field";
 import { Dialog, Message, useAction, useText, useLabels } from "./ui";
 import {
   CameraPreview,
@@ -23,21 +39,13 @@ import {
   type CameraSession,
 } from "./grocery-camera";
 
-type Draft = {
-  name: string;
-  name_en: string;
-  name_th: string;
-  quantity: string;
-  price: string;
-  unit: Unit | "";
-  location: Location | "";
-  expiry_date: string;
-};
 type Suggestion = {
   name: Localized;
   quantity: string | null;
   unit: Unit | null;
-  expiry_date: string | null;
+  expiry_date?: string | null;
+  printed_name?: string;
+  price?: string | null;
 };
 type Barcode = {
   name: string;
@@ -46,16 +54,6 @@ type Barcode = {
   brands: string;
   Quantity: number | null;
   Unit: string | null;
-};
-const blank: Draft = {
-  name: "",
-  name_en: "",
-  name_th: "",
-  quantity: "",
-  price: "",
-  unit: "",
-  location: "",
-  expiry_date: "",
 };
 function fromStock(stock?: Stock): Draft {
   if (!stock) return { ...blank };
@@ -68,18 +66,6 @@ function fromStock(stock?: Stock): Draft {
     unit: stock.unit,
     location: stock.location,
     expiry_date: stock.expiry_date ?? "",
-  };
-}
-function payload(draft: Draft) {
-  return {
-    name: draft.name.trim(),
-    name_en: draft.name_en.trim() || null,
-    name_th: draft.name_th.trim() || null,
-    quantity: draft.quantity,
-    price: draft.price || null,
-    unit: draft.unit,
-    location: draft.location,
-    expiry_date: draft.expiry_date || null,
   };
 }
 async function readBarcodeFrame(video: HTMLVideoElement, signal: AbortSignal) {
@@ -151,38 +137,92 @@ export function StockEditor({
   existing?: Stock;
   day: string;
   close: () => void;
-  saved: () => void;
+  saved: (count?: number) => void;
 }) {
   const client = useQueryClient();
   const { t, lang } = useText(),
     labels = useLabels(),
     action = useAction();
   const [initialDraft] = useState(() => fromStock(existing));
-  const [method, setMethod] = useState<"manual" | "photo" | "barcode">(
+  const [method, setMethod] = useState<"manual" | "barcode" | BatchSource>(
       "manual",
     ),
     [draft, setDraft] = useState(initialDraft);
   const [code, setCode] = useState(""),
     [scan, setScan] = useState(false);
-  const [queue, setQueue] = useState<Draft[]>([]),
+  const [batch, setBatch] = useState<{
+      rows: Draft[];
+      source: BatchSource;
+      hasMore: boolean;
+      receiptImage?: File;
+    } | null>(null),
+    [listText, setListText] = useState(""),
+    [started, setStarted] = useState(0),
+    [requestId, setRequestId] = useState(""),
     [hint, setHint] = useState(""),
     [source, setSource] = useState<string | null>(null),
     [review, setReview] = useState(false);
-  const [invalid, setInvalid] = useState<Record<string, string>>({});
+  const [invalid, setInvalid] = useState<Partial<Record<keyof Draft, string>>>(
+    {},
+  );
   function change(field: keyof Draft, value: string) {
     setDraft({ ...draft, [field]: value });
     setInvalid({ ...invalid, [field]: "" });
   }
   function switchMethod(m: typeof method) {
+    if (m === method) return;
+    if (m === "photo" || m === "list" || m === "receipt") {
+      const key = crypto.randomUUID();
+      setRequestId(key);
+      setStarted(performance.now());
+      // A missing start event must never block a shopper from reviewing or saving.
+      void api("inventory/batch-starts", "POST", { source: m }, { key }).catch(
+        () => {},
+      );
+    }
     setScan(false);
     setReview(false);
     setMethod(m);
-    setQueue([]);
+    setBatch(null);
     setHint("");
     setSource(null);
     action.setError(null);
     setInvalid({});
   }
+  async function startReview(
+    drafts: Draft[],
+    source: BatchSource,
+    hasMore = false,
+    receiptImage?: File,
+  ) {
+    const names = [
+      ...new Set(
+        drafts
+          .map((row) => row.name.trim())
+          .filter((name) => name && name.length <= 200),
+      ),
+    ];
+    const hints = names.length
+      ? await api<Record<string, Location>>(
+          "inventory/location-hints",
+          "POST",
+          { names },
+          { signal: AbortSignal.timeout(2000) },
+        ).catch(() => ({}) as Record<string, Location>)
+      : {};
+    setBatch({
+      source,
+      hasMore,
+      receiptImage,
+      rows: drafts.map((draft) => ({
+        ...draft,
+        location: Object.hasOwn(hints, draft.name.trim())
+          ? hints[draft.name.trim()]
+          : "",
+      })),
+    });
+  }
+  const listRows = method === "list" && !batch ? readGroceryList(listText) : [];
   function lookup(digits: string) {
     void action.run(async () => {
       setCode(digits);
@@ -223,7 +263,9 @@ export function StockEditor({
       setReview(true);
     });
   }
-  const fieldError = (key: keyof Draft) => <Message code={invalid[key]} />;
+  const fieldError = (key: keyof Draft) => (
+    <Message code={invalid[key] || null} />
+  );
   const textField = (key: "name" | "name_en" | "name_th", label: string) => (
     <label>
       {label}
@@ -239,6 +281,7 @@ export function StockEditor({
   );
   return (
     <Dialog
+      icon={existing ? PencilLine : ShoppingBasket}
       title={
         existing
           ? t("Edit entry", "แก้ไขรายการ")
@@ -247,10 +290,11 @@ export function StockEditor({
       close={close}
       busy={action.busy}
     >
-      {!existing && (
+      {!existing && !batch && (
         <div className="segmented methods">
           {(
             [
+              { key: "list", icon: List, text: t("Paste list", "วางรายการ") },
               { key: "manual", icon: PencilLine, text: t("Manual", "กรอกเอง") },
               {
                 key: "barcode",
@@ -258,6 +302,11 @@ export function StockEditor({
                 text: t("Barcode", "บาร์โค้ด"),
               },
               { key: "photo", icon: Camera, text: t("Photo", "รูปถ่าย") },
+              {
+                key: "receipt",
+                icon: ReceiptText,
+                text: t("Receipt", "ใบเสร็จ"),
+              },
             ] as const
           ).map((m) => (
             <button
@@ -273,7 +322,69 @@ export function StockEditor({
           ))}
         </div>
       )}
-      {method === "barcode" && !review ? (
+      {batch ? (
+        <BatchReview
+          initial={batch.rows}
+          source={batch.source}
+          hasMore={batch.hasMore}
+          receiptImage={batch.receiptImage}
+          requestId={requestId}
+          started={started}
+          day={day}
+          busy={action.busy}
+          run={action.run}
+          saved={(count) => {
+            saved(count);
+            close();
+          }}
+        />
+      ) : method === "list" ? (
+        <form
+          className="grocery-list"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (listRows.length && listRows.length <= maxBatch)
+              void action.run(() => startReview(listRows, "list"));
+          }}
+        >
+          <label>
+            {t("Shopping list", "รายการซื้อของ")}
+            <textarea
+              rows={6}
+              value={listText}
+              disabled={action.busy}
+              onChange={(event) => setListText(event.target.value)}
+              aria-describedby="grocery-list-hint"
+              placeholder={t(
+                "Eggs 6 each\nRice 1 kg\nBasil",
+                "ไข่ 6 ฟอง\nข้าว 1 กก.\nกะเพรา",
+              )}
+            />
+          </label>
+          <p id="grocery-list-hint" className="muted">
+            {t(
+              "Paste one item per line, up to 40. Include an amount and unit if you know them.",
+              "วางของหนึ่งรายการต่อบรรทัด สูงสุด 40 รายการ ใส่จำนวนและหน่วยได้หากทราบ",
+            )}
+          </p>
+          {listRows.length > maxBatch && (
+            <p role="alert">
+              {t(
+                "Split this list into groups of 40 or fewer.",
+                "แบ่งรายการเป็นกลุ่มละไม่เกิน 40 รายการ",
+              )}
+            </p>
+          )}
+          <button
+            className="primary"
+            disabled={
+              action.busy || !listRows.length || listRows.length > maxBatch
+            }
+          >
+            {t("Review list", "ตรวจรายการ")}
+          </button>
+        </form>
+      ) : method === "barcode" && !review ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -323,21 +434,28 @@ export function StockEditor({
             </div>
           </fieldset>
         </form>
-      ) : method === "photo" && !review ? (
+      ) : (method === "photo" || method === "receipt") && !review ? (
         <GroceryPhoto
+          key={method}
+          receipt={method === "receipt"}
           busy={action.busy}
           setError={action.setError}
           analyze={(photo) => {
             void action.run(async () => {
               const data = new FormData();
               data.append("photo", photo);
-              const response = await api<{ suggestions: Suggestion[] }>(
-                "photos/analyze",
+              const response = await api<{
+                suggestions: Suggestion[];
+                has_more?: boolean;
+              }>(
+                method === "receipt" ? "receipts/analyze" : "photos/analyze",
                 "POST",
                 data,
               );
               if (!response.suggestions?.length)
-                throw new ApiError("empty_photo");
+                throw new ApiError(
+                  method === "receipt" ? "empty_receipt" : "empty_photo",
+                );
               const drafts = response.suggestions.map((s) => ({
                 ...blank,
                 name: s.name[lang],
@@ -345,29 +463,35 @@ export function StockEditor({
                 name_th: s.name.th,
                 quantity: s.quantity == null ? "" : String(s.quantity),
                 unit: s.unit ?? ("" as const),
-                expiry_date: s.expiry_date || "",
+                expiry_date: method === "photo" ? s.expiry_date || "" : "",
+                printedName: s.printed_name,
+                price: s.price ?? "",
               }));
-              setDraft(drafts[0]);
-              setQueue(drafts.slice(1));
-              setReview(true);
+              await startReview(
+                drafts,
+                method,
+                response.has_more,
+                method === "receipt" ? photo : undefined,
+              );
             }, "photo");
           }}
         />
       ) : (
         <form
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            const errors: Record<string, string> = {};
-            if (!draft.name.trim()) errors.name = "name";
-            if (!draft.unit) errors.unit = "required";
-            if (!draft.location) errors.location = "required";
-            const q = quantityError(draft.quantity, draft.unit || "g");
-            if (q) errors.quantity = q;
-            const price = priceError(draft.price);
-            if (price) errors.price = price;
-            if (!validDate(draft.expiry_date)) errors.expiry_date = "date";
+            const errors = draftErrors(draft);
             setInvalid(errors);
-            if (Object.keys(errors).length) return;
+            if (Object.keys(errors).length) {
+              const form = e.currentTarget;
+              requestAnimationFrame(() =>
+                form
+                  .querySelector<HTMLElement>('[aria-invalid="true"]')
+                  ?.focus(),
+              );
+              return;
+            }
             void action.run(async () => {
               const values = payload(draft);
               if (existing) {
@@ -385,10 +509,7 @@ export function StockEditor({
                   );
               } else await api("inventory?today=" + day, "POST", values);
               saved();
-              if (queue.length) {
-                setDraft(queue[0]);
-                setQueue(queue.slice(1));
-              } else close();
+              close();
             });
           }}
         >
@@ -442,21 +563,18 @@ export function StockEditor({
                 />
                 {fieldError("quantity")}
               </label>
-              <label>
-                {t("Unit", "หน่วย")}
-                <select
-                  required
-                  value={draft.unit}
-                  onChange={(e) => change("unit", e.target.value)}
-                >
-                  <option value="">{t("Select unit", "เลือกหน่วย")}</option>
-                  {units.map((u) => (
-                    <option key={u} value={u}>
-                      {labels[u]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <SelectField
+                label={t("Unit", "หน่วย")}
+                required
+                value={draft.unit}
+                disabled={action.busy}
+                error={invalid.unit}
+                onChange={(value) => change("unit", value)}
+                options={[
+                  { value: "", label: t("Select unit", "เลือกหน่วย") },
+                  ...units.map((value) => ({ value, label: labels[value] })),
+                ]}
+              />
             </div>
             <label>
               {t("Price paid (optional, THB)", "ราคาที่จ่าย (ถ้ามี, บาท)")}
@@ -470,59 +588,38 @@ export function StockEditor({
               />
               {fieldError("price")}
             </label>
-            <label>
-              {t("Storage location", "ที่จัดเก็บ")}
-              <select
-                required
-                value={draft.location}
-                onChange={(e) => change("location", e.target.value)}
-              >
-                <option value="">{t("Select location", "เลือกที่จัดเก็บ")}</option>
-                {locations.map((l) => (
-                  <option key={l} value={l}>
-                    {labels[l]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              {t("Expiry date (optional)", "วันหมดอายุ (ถ้ามี)")}
-              <input
-                type="date"
-                min="0001-01-01"
-                max="9999-12-31"
-                value={draft.expiry_date}
-                onChange={(e) => change("expiry_date", e.target.value)}
-              />
-              {fieldError("expiry_date")}
-            </label>
+            <SelectField
+              label={t("Storage location", "ที่จัดเก็บ")}
+              required
+              value={draft.location}
+              disabled={action.busy}
+              error={invalid.location}
+              onChange={(value) => change("location", value)}
+              options={[
+                { value: "", label: t("Select location", "เลือกที่จัดเก็บ") },
+                ...locations.map((value) => ({ value, label: labels[value] })),
+              ]}
+            />
+            <DateField
+              label={t("Expiry date (optional)", "วันหมดอายุ (ถ้ามี)")}
+              value={draft.expiry_date}
+              today={day}
+              onChange={(value) => change("expiry_date", value)}
+              disabled={action.busy}
+              error={invalid.expiry_date}
+            />
             <div className="actions">
               <button className="primary">
                 {action.busy
                   ? t("Saving…", "กำลังบันทึก…")
-                  : queue.length
-                    ? t("Save and review next", "บันทึกและตรวจรายการถัดไป")
-                    : t("Save entry", "บันทึกรายการ")}
+                  : t("Save entry", "บันทึกรายการ")}
               </button>
-              {queue.length > 0 && (
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => {
-                    setDraft(queue[0]);
-                    setQueue(queue.slice(1));
-                    setInvalid({});
-                  }}
-                >
-                  {t("Skip item", "ข้ามรายการ")}
-                </button>
-              )}
             </div>
           </fieldset>
         </form>
       )}
       <Message code={action.error} />
-      {action.error && method !== "manual" && !review && (
+      {action.error && method !== "manual" && !review && !batch && (
         <button className="link" onClick={() => switchMethod("manual")}>
           {t("Enter manually", "กรอกด้วยตนเอง")}
         </button>

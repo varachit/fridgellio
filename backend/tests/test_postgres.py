@@ -1,8 +1,11 @@
+import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
@@ -706,7 +709,8 @@ def test_recommendation_preview_resolves_settings_and_filters_stock(
     ):
         assert client.post(route, headers=owner, json=invalid).status_code == 422
 
-    async def suggest(_, preview):
+    async def suggest(_, preview, *, single_recipe):
+        assert not single_recipe
         reference = next(
             index for index, item in enumerate(preview.ingredients) if item.unit == "g"
         )
@@ -717,7 +721,7 @@ def test_recommendation_preview_resolves_settings_and_filters_stock(
                         "name": {"en": "Cooked spinach", "th": "ผักโขมปรุงสุก"},
                         "description": {"en": "Tender spinach.", "th": "ผักโขมเนื้อนุ่ม"},
                         "ingredients": [{"reference": reference, "quantity": "75"}],
-                        "equipment": ["Stove"],
+                        "equipment_references": [0],
                         "steps": [{"en": "Cook the spinach.", "th": "ปรุงผักโขมให้สุก"}],
                         "minutes": 10,
                         "difficulty": "easy",
@@ -753,6 +757,76 @@ def test_recommendation_preview_resolves_settings_and_filters_stock(
     assert made.status_code == 204, made.text
     history = client.get("/api/inventory-history", headers=member).json()
     assert any(event["kind"] == "used" and event["quantity"] == "75" for event in history)
+
+
+@pytest.mark.parametrize(
+    ("attempts", "status", "count"),
+    [
+        (["empty", "valid"], 200, 1),
+        (["invalid", "valid"], 200, 1),
+        (["empty", "empty"], 200, 0),
+        (["invalid", "invalid"], 502, 0),
+    ],
+)
+def test_recipe_search_recovers_or_distinguishes_no_match(
+    client, household_accounts, monkeypatch, attempts, status, count
+):
+    owner = household_accounts[0]
+    assert client.post("/api/household", headers=owner).is_success
+    add_stock(client, owner, "Spinach", "0.25", unit="kg")
+    add_stock(client, owner, "Peanuts", "100")
+    body = {
+        "generate": True,
+        "servings": 2,
+        "equipment": ["ไมโครเวฟ"],
+        "foods_to_avoid": ["Peanuts"],
+        "max_total_minutes": 15,
+    }
+    provider = Mock()
+    parse = provider.with_options.return_value.responses.parse = AsyncMock()
+    monkeypatch.setattr(client.app.state, "openai_client", provider)
+
+    async def respond(*, input, instructions, text_format, **_):
+        pantry = json.loads(input)
+        assert pantry["equipment"] == [{"reference": 0, "name": "ไมโครเวฟ"}]
+        assert [
+            (row["reference"], row["name"], row["quantity"], row["unit"])
+            for row in pantry["ingredients"]
+        ] == [(0, "Spinach", "250", "g")]
+        assert pantry["preferences"]["servings"] == 2
+        assert pantry["preferences"]["foods_to_avoid"] == ["Peanuts"]
+        assert pantry["preferences"]["max_total_minutes"] == 15
+        if parse.await_count == 2:
+            assert "ONE simple preparation" in instructions
+        result = attempts[parse.await_count - 1]
+        dish = {
+            "name": {"en": "Steamed spinach", "th": "ผักโขมนึ่ง"},
+            "description": {"en": "Tender spinach.", "th": "ผักโขมเนื้อนุ่ม"},
+            "ingredients": [{"reference": 0, "quantity": "300" if result == "invalid" else "200"}],
+            "equipment_references": [0],
+            "steps": [
+                {"en": "Microwave the spinach until tender.", "th": "อุ่นผักโขมด้วยไมโครเวฟจนสุกนุ่ม"}
+            ],
+            "minutes": 5,
+            "difficulty": "easy",
+        }
+        return SimpleNamespace(
+            output_parsed=text_format(recipes=[] if result == "empty" else [dish])
+        )
+
+    parse.side_effect = respond
+    response = client.post("/api/menus/recommendations", headers=owner, json=body)
+    assert parse.await_count == 2
+    assert response.status_code == status, response.text
+    if status == 200:
+        recipes = response.json()["recipes"]
+        assert len(recipes) == count
+        if recipes:
+            assert recipes[0]["equipment"] == ["ไมโครเวฟ"]
+            assert recipes[0]["ingredients"][0]["quantity"] == "200"
+    else:
+        assert response.json()["code"] == "invalid_menu"
+    assert len(client.get("/api/inventory-history", headers=owner).json()) == 2
 
 
 def test_cooked_recipe_allocates_exact_stock_once_or_rolls_back(client, household_accounts):
@@ -888,3 +962,176 @@ def test_competing_meals_cannot_overdraw_and_keep_fractional_units_exact(
     assert [(e["quantity"], e["unit"]) for e in events if e["kind"] == "used"] == [
         ("75.000001", "g")
     ]
+
+
+def test_batch_retry_hints_and_adoption_report(client, household_accounts, database):
+    owner, _, other = household_accounts
+    for account in (owner, other):
+        assert client.post("/api/household", headers=account).status_code == 201
+    item = {"name": "Eggs", "name_th": "ไข่", "quantity": "6", "unit": "each", "location": "fridge"}
+    body = {
+        "source": "photo",
+        "items": [item, {**item, "name": "Milk", "name_th": None}],
+        "offered": 2,
+        "removed": 1,
+        "corrected": 1,
+        "elapsed_seconds": 30,
+    }
+    path = "/api/inventory/batches"
+    headers = {**owner, "Idempotency-Key": str(uuid4())}
+    start = "/api/inventory/batch-starts"
+    for _ in range(2):
+        assert client.post(start, json={"source": "photo"}, headers=headers).status_code == 204
+    assert (
+        client.post(
+            start, json={"source": "photo"}, headers={**owner, "Idempotency-Key": str(uuid4())}
+        ).status_code
+        == 204
+    )
+    invalid = {**body, "items": [item, {**item, "quantity": "1.5"}]}
+    assert client.post(path, json=invalid, headers=headers).status_code == 422
+    assert client.get("/api/inventory", headers=owner).json() == []
+    with ThreadPoolExecutor(2) as pool:
+        results = list(pool.map(lambda _: client.post(path, json=body, headers=headers), range(2)))
+    assert [(r.status_code, r.json()) for r in results] == [(201, {"saved": 2})] * 2
+    conflict = client.post(path, json={**body, "corrected": 0}, headers=headers)
+    assert conflict.status_code == 409 and conflict.json()["code"] == "idempotency_conflict"
+    stock = client.get("/api/inventory", headers=owner).json()
+    assert len(stock) == 2
+    for entry in stock:
+        events = client.get(f"/api/inventory/{entry['id']}/events", headers=owner).json()
+        assert [e["kind"] for e in events] == ["added"]
+    hints = "/api/inventory/location-hints"
+    names = {"names": ["EGGS", "ไข่", "Milk"]}
+    assert client.post(hints, headers=other, json=names).json() == {}
+    eggs = next(s for s in stock if s["name"] == "Eggs")
+    assert (
+        client.post(
+            f"/api/inventory/{eggs['id']}/events",
+            headers=owner,
+            json={"kind": "used", "quantity": "6"},
+        ).status_code
+        == 201
+    )
+    milk = next(s for s in stock if s["name"] == "Milk")
+    assert client.delete(f"/api/inventory/{milk['id']}", headers=owner).status_code == 204
+    assert client.post(hints, headers=owner, json=names).json() == {
+        "EGGS": "fridge",
+        "ไข่": "fridge",
+    }
+    add_stock(client, owner, "Eggs", unit="each", location="pantry")
+    assert client.post(hints, headers=owner, json={"names": ["eggs"]}).json() == {"eggs": "pantry"}
+
+    engine = create_engine(database[0])
+    try:
+        with engine.begin() as connection:
+            # Age the first confirmed trip so its present-day additions fall in week two.
+            connection.execute(
+                text("UPDATE grocery_batches SET created_at = now() - interval '14 days'")
+            )
+            connection.execute(
+                text("UPDATE inventory_events SET created_at = now() - interval '3 days'")
+            )
+            report = (API_DIR / "reports/grocery-intake.sql").read_text()
+            summary, cohort, funnel = [
+                connection.exec_driver_sql(query.replace("%", "%%")).mappings().one()
+                for query in report.strip().removesuffix(";").split(";")
+            ]
+            assert (
+                funnel["opened_attempts"],
+                funnel["saved_attempts"],
+                funnel["open_without_save"],
+            ) == (2, 1, 1)
+            assert (
+                summary["trips"],
+                summary["added_in_review"],
+                summary["median_seconds_per_item"],
+            ) == (1, 1, 15)
+            assert (
+                cohort["eligible_households"],
+                cohort["restocked_week_two"],
+                cohort["cooked_week_one"],
+            ) == (1, 1, 0)
+    finally:
+        engine.dispose()
+
+
+def test_eight_item_trip_without_start_and_conflicting_household_locations(
+    client, household_accounts
+):
+    owner, _, _ = household_accounts
+    assert client.post("/api/household", headers=owner).status_code == 201
+    sample = {"name": "Eggs", "unit": "each", "quantity": "1", "location": "fridge"}
+    items = [
+        sample,
+        {**sample, "location": "pantry"},
+        *[
+            {**sample, "name": name}
+            for name in ["Lime", "Lemon", "Apple", "Orange", "Pear", "Banana"]
+        ],
+    ]
+    headers = {**owner, "Idempotency-Key": str(uuid4())}
+    body = {
+        "source": "list",
+        "items": items,
+        "offered": 8,
+        "removed": 0,
+        "corrected": 0,
+        "elapsed_seconds": 15,
+    }
+    path = "/api/inventory/batches"
+    assert (
+        client.post(path, headers=headers, json={**body, "items": [sample] * 41}).status_code == 422
+    )
+    for _ in range(2):
+        assert client.post(path, headers=headers, json=body).json() == {"saved": 8}
+    # A delayed start can arrive after the save response.
+    assert (
+        client.post(
+            "/api/inventory/batch-starts", headers=headers, json={"source": "list"}
+        ).status_code
+        == 204
+    )
+    assert len(client.get("/api/inventory", headers=owner).json()) == 8
+    assert len(client.get("/api/inventory-history", headers=owner).json()) == 8
+    assert client.post(
+        "/api/inventory/location-hints", headers=owner, json={"names": ["Eggs", "Banana"]}
+    ).json() == {"Banana": "fridge"}
+
+
+def test_receipt_read_returns_review_before_writing_stock(client, household_accounts, monkeypatch):
+    from fridgellio import routes
+    from fridgellio.schemas import ReceiptAnalysis
+
+    owner, _, _ = household_accounts
+    assert client.post("/api/household", headers=owner).status_code == 201
+    files = {"photo": ("receipt.png", b"test receipt", "image/png")}
+    path = "/api/receipts/analyze"
+    assert client.post(path, files=files).status_code == 401
+    assert client.post(path, files=files, headers=owner).json()["code"] == "photo_unavailable"
+
+    reader = object()
+    monkeypatch.setattr(client.app.state, "openai_client", reader)
+
+    async def read_image(client, photo):
+        assert client is reader and photo == b"test receipt"
+        return ReceiptAnalysis.model_validate(
+            {
+                "currency": "THB",
+                "has_more": False,
+                "suggestions": [
+                    {
+                        "name": {"en": "Milk", "th": "นม"},
+                        "printed_name": "MILK 1 L",
+                        "quantity": "2",
+                        "unit": "l",
+                        "price": "76.00",
+                    }
+                ],
+            }
+        )
+
+    monkeypatch.setattr(routes, "analyze_receipt", read_image)
+    response = client.post(path, files=files, headers=owner)
+    assert response.status_code == 200 and response.json()["suggestions"][0]["price"] == "76.00"
+    assert client.get("/api/inventory", headers=owner).json() == []

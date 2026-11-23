@@ -1,4 +1,5 @@
 "use client";
+import { AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Leaf, Globe } from "lucide-react";
@@ -89,37 +90,42 @@ function FoodsToAvoid() {
         !rows.error && <Busy />
       )}
       {!selected && <Message code={action.error} />}
-      {selected && (
-        <Dialog
-          title={t("Remove item", "ลบรายการ")}
-          close={() => select(null)}
-          busy={action.busy}
-        >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void action.run(async () => {
-                await api(foodPath + "/" + selected.id, "DELETE");
-                select(null);
-                void client.invalidateQueries({
-                  queryKey: foodsQuery.queryKey,
-                });
-              });
-            }}
+      <AnimatePresence>
+        {selected && (
+          <Dialog
+            icon={Leaf}
+            size="compact"
+            dismissOnBackdrop
+            title={t("Remove item", "ลบรายการ")}
+            close={() => select(null)}
+            busy={action.busy}
           >
-            <fieldset disabled={action.busy}>
-              <p>
-                {t("Remove this item?", "ลบรายการนี้หรือไม่")}{" "}
-                <strong>{selected.name}</strong>
-              </p>
-              <Message code={action.error} />
-              <button className="danger">
-                {t("Confirm removal", "ยืนยันการลบ")}
-              </button>
-            </fieldset>
-          </form>
-        </Dialog>
-      )}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void action.run(async () => {
+                  await api(foodPath + "/" + selected.id, "DELETE");
+                  select(null);
+                  void client.invalidateQueries({
+                    queryKey: foodsQuery.queryKey,
+                  });
+                });
+              }}
+            >
+              <fieldset disabled={action.busy}>
+                <p>
+                  {t("Remove this item?", "ลบรายการนี้หรือไม่")}{" "}
+                  <strong>{selected.name}</strong>
+                </p>
+                <Message code={action.error} />
+                <button className="danger">
+                  {t("Confirm removal", "ยืนยันการลบ")}
+                </button>
+              </fieldset>
+            </form>
+          </Dialog>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

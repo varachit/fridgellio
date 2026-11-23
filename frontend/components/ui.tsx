@@ -1,6 +1,6 @@
 "use client";
-import { useState, useRef, useLayoutEffect, useId } from "react";
-import { X, CircleAlert, LoaderCircle, Globe, Sprout } from "lucide-react";
+import { useState, useRef } from "react";
+import { CircleAlert, LoaderCircle, Globe, Sprout } from "lucide-react";
 import { useLanguage } from "./language";
 import { ApiError } from "@/lib/api";
 
@@ -151,6 +151,10 @@ const errors: Record<string, [string, string]> = {
     "Choose a photo no larger than 16 megapixels.",
     "เลือกภาพที่มีขนาดไม่เกิน 16 เมกะพิกเซล",
   ],
+  empty_receipt: [
+    "No grocery lines could be read. Try a clearer receipt image or paste a shopping list.",
+    "อ่านรายการของสดไม่ได้ ลองใช้ภาพใบเสร็จที่ชัดขึ้นหรือวางรายการซื้อของ",
+  ],
   empty_photo: [
     "No groceries were detected. Try a different photo or add an item manually.",
     "ไม่พบของสดในภาพ ลองเปลี่ยนภาพหรือกรอกเอง",
@@ -158,10 +162,6 @@ const errors: Record<string, [string, string]> = {
   menu: [
     "Menu generation is unavailable. You can still manage your pantry and equipment.",
     "ยังสร้างเมนูไม่ได้ คุณยังจัดการคลังอาหารและอุปกรณ์ได้",
-  ],
-  no_suitable_menu: [
-    "No suitable menu was found. Try different ingredients or equipment.",
-    "ไม่พบเมนูที่เหมาะสม ลองเปลี่ยนวัตถุดิบหรืออุปกรณ์",
   ],
   menu_rate_limited: [
     "Too many recipe requests. Try again shortly.",
@@ -195,7 +195,7 @@ const errors: Record<string, [string, string]> = {
     "เซสชันสิ้นสุดแล้ว กรุณาเข้าสู่ระบบอีกครั้ง",
   ],
 };
-export function Message({ code }: { code: string | null }) {
+export function Message({ code, id }: { code: string | null; id?: string }) {
   const { t } = useText();
   if (!code) return null;
   const pair =
@@ -205,7 +205,7 @@ export function Message({ code }: { code: string | null }) {
       "ทำรายการไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง",
     ] as const);
   return (
-    <p className="error" role="alert">
+    <p id={id} className="error" role="alert">
       <CircleAlert size={17} />
       {t(...pair)}
     </p>
@@ -258,50 +258,7 @@ export function Empty({ title, body }: { title: string; body?: string }) {
     </div>
   );
 }
-export function Dialog({
-  title,
-  children,
-  close,
-  busy = false,
-}: {
-  title: string;
-  children: React.ReactNode;
-  close: () => void;
-  busy?: boolean;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const id = useId();
-  const { t } = useText();
-  useLayoutEffect(() => {
-    const el = ref.current;
-    el?.showModal();
-    return () => el?.close();
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      aria-labelledby={id}
-      onCancel={(event) => {
-        event.preventDefault();
-        if (!busy) close();
-      }}
-    >
-      <header className="dialog-head">
-        <h2 id={id}>{title}</h2>
-        <button
-          className="icon"
-          type="button"
-          disabled={busy}
-          aria-label={t("Close", "ปิด")}
-          onClick={close}
-        >
-          <X size={21} />
-        </button>
-      </header>
-      {children}
-    </dialog>
-  );
-}
+export { Dialog } from "./dialog";
 export function useLabels() {
   const { t } = useText();
   return {

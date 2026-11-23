@@ -1,8 +1,9 @@
 "use client";
+import { AnimatePresence } from "framer-motion";
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ImageOff } from "lucide-react";
+import { ChefHat, ImageOff } from "lucide-react";
 import { api, errorCode } from "@/lib/api";
 import { equipmentQuery, foodsQuery, menusQuery } from "@/lib/queries";
 import { formatPrice, type Stock } from "@/lib/pantry";
@@ -12,8 +13,10 @@ import {
   nutritionOptions,
   difficulties,
   translatedNames,
+  type MealPreferences,
   type RecommendationPreview,
 } from "@/lib/meals";
+import { SelectField } from "./select-field";
 import { MealForm } from "./meal-form";
 import { equipmentPresets } from "./equipment-picker";
 import {
@@ -134,76 +137,85 @@ function RecipeCard({
           <p>{description}</p>
         </div>
       </article>
-      {open && (
-        <Dialog title={name} close={() => setOpen(false)} busy={action.busy}>
-          <div className="recipe-detail">
-            <RecipeIllustration recipe={recipe} />
-            <p>{description}</p>
-            <p className="muted">
-              {t(
-                `${servings} ${servings === 1 ? "serving" : "servings"}`,
-                `${servings} ที่`,
-              )}{" "}
-              · {t(`${recipe.minutes} min`, `${recipe.minutes} นาที`)} ·{" "}
-              {difficulties[recipe.difficulty][lang]}
-            </p>
-            {recipe.estimated_price != null && (
-              <p>
-                <strong>{t("Estimated cost", "ค่าใช้จ่ายโดยประมาณ")} </strong>
-                {formatPrice(recipe.estimated_price, lang)}
-                {recipe.price_coverage === "partial" &&
-                  t(
-                    " · based on groceries with prices",
-                    " · คำนวณจากวัตถุดิบที่มีราคา",
-                  )}
+      <AnimatePresence>
+        {open && (
+          <Dialog
+            icon={ChefHat}
+            size="reading"
+            dismissOnBackdrop
+            title={name}
+            close={() => setOpen(false)}
+            busy={action.busy}
+          >
+            <div className="recipe-detail">
+              <RecipeIllustration recipe={recipe} />
+              <p>{description}</p>
+              <p className="muted">
+                {t(
+                  `${servings} ${servings === 1 ? "serving" : "servings"}`,
+                  `${servings} ที่`,
+                )}{" "}
+                · {t(`${recipe.minutes} min`, `${recipe.minutes} นาที`)} ·{" "}
+                {difficulties[recipe.difficulty][lang]}
               </p>
-            )}
-            <div className="recipe-cook">
-              <Message code={action.error} />
-              <button
-                type="button"
-                className="primary"
-                disabled={action.busy || recipe.cooked}
-                onClick={recordMeal}
-              >
-                {action.busy
-                  ? t("Recording…", "กำลังบันทึก…")
-                  : t("I made this menu", "ฉันทำเมนูนี้แล้ว")}
-              </button>
-              {recipe.cooked && (
-                <p className="success" role="status">
-                  {t(
-                    "Meal recorded. Ingredients deducted from inventory.",
-                    "บันทึกมื้ออาหารและหักวัตถุดิบจากคลังแล้ว",
-                  )}
+              {recipe.estimated_price != null && (
+                <p>
+                  <strong>{t("Estimated cost", "ค่าใช้จ่ายโดยประมาณ")} </strong>
+                  {formatPrice(recipe.estimated_price, lang)}
+                  {recipe.price_coverage === "partial" &&
+                    t(
+                      " · based on groceries with prices",
+                      " · คำนวณจากวัตถุดิบที่มีราคา",
+                    )}
                 </p>
               )}
+              <div className="recipe-cook">
+                <Message code={action.error} />
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={action.busy || recipe.cooked}
+                  onClick={recordMeal}
+                >
+                  {action.busy
+                    ? t("Recording…", "กำลังบันทึก…")
+                    : t("I made this menu", "ฉันทำเมนูนี้แล้ว")}
+                </button>
+                {recipe.cooked && (
+                  <p className="success" role="status">
+                    {t(
+                      "Meal recorded. Ingredients deducted from inventory.",
+                      "บันทึกมื้ออาหารและหักวัตถุดิบจากคลังแล้ว",
+                    )}
+                  </p>
+                )}
+              </div>
+              <h3>{t("Ingredients", "วัตถุดิบ")}</h3>
+              <ul>
+                {recipe.ingredients.map((item, index) => (
+                  <li key={index}>
+                    {item.name[lang]} · {item.quantity} {labels[item.unit]}
+                  </li>
+                ))}
+              </ul>
+              {recipe.equipment.length > 0 && (
+                <>
+                  <h3>{t("Equipment", "อุปกรณ์")}</h3>
+                  <p>
+                    {translatedNames(recipe.equipment, equipmentPresets, lang)}
+                  </p>
+                </>
+              )}
+              <h3>{t("Cooking steps", "วิธีทำ")}</h3>
+              <ol>
+                {recipe.steps.map((step, index) => (
+                  <li key={index}>{step[lang]}</li>
+                ))}
+              </ol>
             </div>
-            <h3>{t("Ingredients", "วัตถุดิบ")}</h3>
-            <ul>
-              {recipe.ingredients.map((item, index) => (
-                <li key={index}>
-                  {item.name[lang]} · {item.quantity} {labels[item.unit]}
-                </li>
-              ))}
-            </ul>
-            {recipe.equipment.length > 0 && (
-              <>
-                <h3>{t("Equipment", "อุปกรณ์")}</h3>
-                <p>
-                  {translatedNames(recipe.equipment, equipmentPresets, lang)}
-                </p>
-              </>
-            )}
-            <h3>{t("Cooking steps", "วิธีทำ")}</h3>
-            <ol>
-              {recipe.steps.map((step, index) => (
-                <li key={index}>{step[lang]}</li>
-              ))}
-            </ol>
-          </div>
-        </Dialog>
-      )}
+          </Dialog>
+        )}
+      </AnimatePresence>
     </>
   );
 }
@@ -224,20 +236,18 @@ function SavedMenus() {
       {menu ? (
         <>
           {saved.length > 1 && (
-            <label>
-              {t("Choose menu", "เลือกเมนู")}
-              <select
-                value={menu.id}
-                onChange={(e) => setSelected(e.target.value)}
-              >
-                {saved.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.dishes[0].name[lang]} ·{" "}
-                    {new Date(m.created_at).toLocaleString(lang)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SelectField
+              label={t("Choose menu", "เลือกเมนู")}
+              value={menu.id}
+              onChange={setSelected}
+              options={saved.map((m) => ({
+                value: m.id,
+                label:
+                  m.dishes[0].name[lang] +
+                  " · " +
+                  new Date(m.created_at).toLocaleString(lang),
+              }))}
+            />
           )}
           {menu.dishes.map((d, i) => (
             <article className="dish" key={i}>
@@ -287,7 +297,7 @@ export function Meals({
   add,
 }: {
   preview: RecommendationPreview | null;
-  showPreview: (preview: RecommendationPreview) => void;
+  showPreview: (preview: RecommendationPreview | null) => void;
   onCooked: (id: string) => void;
   stock: Stock[];
   day: string;
@@ -297,8 +307,20 @@ export function Meals({
   const labels = useLabels();
   const foods = useQuery(foodsQuery);
   const equipment = useQuery(equipmentQuery);
+  const kitchenSection = useRef<HTMLDetailsElement>(null);
   const previewHeading = useRef<HTMLHeadingElement>(null);
   const preferences = preview?.preferences;
+  async function generate(selections: MealPreferences) {
+    if (preview?.status === "generated" && !preview.recipes.length)
+      showPreview(null);
+    showPreview(
+      await api<RecommendationPreview>("menus/recommendations", "POST", {
+        today: day,
+        generate: true,
+        ...selections,
+      }),
+    );
+  }
   useEffect(() => {
     if (preferences) previewHeading.current?.focus();
   }, [preferences]);
@@ -338,12 +360,13 @@ export function Meals({
         )}
         {foods.data && equipment.data ? (
           <MealForm
+            kitchenSection={kitchenSection}
             foods={foods.data}
             equipment={equipment.data}
             stock={stock}
             day={day}
             add={add}
-            showPreview={showPreview}
+            generate={generate}
           />
         ) : (
           !problem && <Busy />
@@ -385,9 +408,46 @@ export function Meals({
                 )}
               </p>
             )}
-            {preview.status === "generated" && !preview.recipes.length && (
-              <Message code="no_suitable_menu" />
-            )}
+            {preview.status === "generated" &&
+              !preview.recipes.length &&
+              preview.ingredients.length > 0 && (
+                <div className="meal-empty">
+                  {preview.preferences.equipment.length === 0 ? (
+                    <>
+                      <p>
+                        {t(
+                          "This search used no cooking equipment. Choose the tools you have to include more ways to prepare your groceries.",
+                          "ครั้งนี้ค้นหาเฉพาะเมนูที่ไม่ใช้อุปกรณ์ เลือกอุปกรณ์ที่มีเพื่อเพิ่มวิธีปรุงจากวัตถุดิบในครัว",
+                        )}
+                      </p>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => {
+                          const section = kitchenSection.current;
+                          if (section) {
+                            section.open = true;
+                            section
+                              .querySelector<HTMLButtonElement>(
+                                '[role="checkbox"]',
+                              )
+                              ?.focus();
+                          }
+                        }}
+                      >
+                        {t("Choose equipment", "เลือกอุปกรณ์")}
+                      </button>
+                    </>
+                  ) : (
+                    <p>
+                      {t(
+                        "No recipe matched this request. Review the ingredients below or adjust the meal preferences above.",
+                        "ยังไม่พบเมนูที่ตรงกับคำขอนี้ ลองตรวจสอบรายการวัตถุดิบด้านล่างหรือปรับตัวเลือกมื้ออาหารด้านบน",
+                      )}
+                    </p>
+                  )}
+                </div>
+              )}
             {preview.recipes.length > 0 && (
               <>
                 <div className="recipe-cards">

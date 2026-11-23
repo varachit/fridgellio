@@ -43,7 +43,8 @@ async function forward(request: NextRequest, context: Context) {
       route === "menus" ||
       route === "menus/recommendations" ||
       route === "menus/recommendations/image" ||
-      route === "photos/analyze"
+      route === "photos/analyze" ||
+      route === "receipts/analyze"
     )
       init.signal = AbortSignal.timeout(90_000);
     if (request.method === "GET" && path[0] === "barcodes")

@@ -11,6 +11,16 @@ import { localDay } from "../lib/pantry";
 
 const suffix = () => crypto.randomUUID().slice(0, 8);
 const password = "eight888";
+test.beforeEach(() => {
+  execFileSync(
+    ".venv/bin/python",
+    ["../frontend/e2e/database.py", "start-test"],
+    {
+      cwd: "../backend",
+      env: { ...process.env, PYTHONPATH: "." },
+    },
+  );
+});
 async function register(
   page: Page,
   name: string,
@@ -40,6 +50,14 @@ async function go(page: Page, name: string) {
   if (!(await nav.isVisible()))
     await page.getByRole("button", { name: /^(Menu|เมนู)$/ }).click();
   await nav.getByRole("link", { name, exact: true }).click();
+}
+async function chooseOption(
+  scope: Page | Locator,
+  label: string,
+  option: string,
+) {
+  await scope.getByRole("combobox", { name: label, exact: true }).click();
+  await scope.getByRole("option", { name: option, exact: true }).click();
 }
 function backendSessions(action: "count" | "expire", username: string) {
   return execFileSync(
@@ -87,6 +105,162 @@ function cameraTrack(dialog: Locator) {
     return stream.getVideoTracks()[0];
   });
 }
+
+test.describe("Pantry and meal controls on mobile", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  test("support typed dates, keyboard navigation and touch selection", async ({
+    page,
+  }, info) => {
+    await register(page, "pickers" + suffix());
+    await page
+      .getByRole("button", { name: "Create household", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Add groceries" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Item name", { exact: true }).fill("Carrots");
+    await dialog.getByLabel("Quantity").fill("2");
+    await dialog.getByRole("button", { name: "Save entry" }).click();
+    const unit = dialog.getByRole("combobox", { name: "Unit", exact: true });
+    await expect(unit).toHaveAccessibleDescription("Complete this field.");
+    await unit.press("ArrowDown");
+    await unit.press("k");
+    await unit.press("Enter");
+    await expect(unit).toHaveText("kg");
+    const location = dialog.getByRole("combobox", { name: "Storage location" });
+    await location.tap();
+    await dialog.getByRole("option", { name: "Fridge", exact: true }).tap();
+    await location.press("ArrowDown");
+    await expect(dialog.getByRole("listbox")).toHaveCSS("opacity", "1");
+    await dialog.screenshot({ path: info.outputPath("grocery-dropdown.png") });
+    await location.press("End");
+    await location.press("Escape");
+    await expect(location).toBeFocused();
+    await expect(location).toHaveText("Fridge");
+    const input = dialog.getByLabel("Expiry date");
+    const trigger = dialog.getByRole("button", { name: "Choose date" });
+    const grid = dialog.getByRole("grid");
+    await trigger.click();
+    await page.keyboard.press("Escape");
+    await expect(grid).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(input).toHaveValue("");
+    await input.fill("2027-02-29");
+    await dialog.getByRole("button", { name: "Save entry" }).click();
+    await expect(input).toHaveAccessibleDescription(
+      "Enter a valid calendar date.",
+    );
+    await input.fill("2028-01-31");
+    await trigger.click();
+    await page.keyboard.press("PageDown");
+    await page.keyboard.press("Escape");
+    await trigger.press("Enter");
+    await expect(
+      grid.getByRole("button", { name: "Monday, January 31, 2028" }),
+    ).toBeFocused();
+    await page.keyboard.press("PageDown");
+    const leapDay = grid.getByRole("button", {
+      name: "Tuesday, February 29, 2028",
+    });
+    await expect(leapDay).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowLeft");
+    await expect(leapDay).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(input).toHaveValue("2028-02-29");
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await expect(
+      dialog.getByRole("group", { name: "Calendar", exact: true }),
+    ).toHaveCSS("opacity", "1");
+    await dialog
+      .locator(".picker-field")
+      .filter({ has: page.getByRole("grid") })
+      .screenshot({
+        path: info.outputPath("grocery-calendar.png"),
+      });
+    await dialog.getByRole("button", { name: "Clear date" }).click();
+    await expect(input).toHaveValue("");
+    await trigger.click();
+    await dialog.getByRole("button", { name: "Today", exact: true }).click();
+    await expect(input).toHaveValue(localDay());
+    await expect(dialog.locator('select, input[type="date"]')).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Save entry" }).click();
+    await expect(dialog).toBeHidden();
+    await chooseOption(page, "Storage location", "Pantry");
+    await expect(page.getByText("No matching groceries")).toBeVisible();
+    await chooseOption(page, "Storage location", "All locations");
+    await expect(page.getByRole("button", { name: /Carrots/ })).toBeVisible();
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await go(page, "Settings");
+    await chooseOption(page, "Display language", "ไทย");
+    await go(page, "คลังอาหาร");
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.getByRole("button", { name: "เพิ่มของสด" }).tap();
+    expect(
+      await dialog.evaluate((el) => ({
+        opacity: getComputedStyle(el).opacity,
+        transform: getComputedStyle(el).transform,
+      })),
+    ).toEqual({ opacity: "1", transform: "none" });
+    await dialog.getByLabel("วันหมดอายุ").fill("2028-02-29");
+    await dialog.getByRole("button", { name: "เลือกวันที่" }).tap();
+    await expect(grid).toHaveAccessibleName("กุมภาพันธ์ 2028");
+    const calendar = dialog.getByRole("group", { name: "ปฏิทิน", exact: true });
+    expect(
+      await calendar.evaluate((panel) => ({
+        opacity: getComputedStyle(panel).opacity,
+        running: panel
+          .getAnimations()
+          .some((animation) => animation.playState === "running"),
+      })),
+    ).toEqual({ opacity: "1", running: false });
+    await dialog.getByRole("button", { name: "เดือนถัดไป" }).tap();
+    await expect(grid).toHaveAccessibleName("มีนาคม 2028");
+    await grid.getByRole("button", { name: /ที่ 1 มีนาคม/ }).tap();
+    await expect(dialog.getByLabel("วันหมดอายุ")).toHaveValue("2028-03-01");
+    expect(
+      await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth),
+    ).toBe(true);
+    await dialog.getByRole("button", { name: "ปิด", exact: true }).tap();
+    await go(page, "ไอเดียมื้ออาหาร");
+    await page
+      .locator("summary")
+      .filter({ hasText: "สไตล์อาหารและความยาก" })
+      .tap();
+    const meal = page.getByRole("main");
+    await expect(
+      meal.locator('input[type="checkbox"], input[type="radio"], select'),
+    ).toHaveCount(0);
+    const thai = meal.getByRole("checkbox", { name: "ไทย", exact: true });
+    const japanese = meal.getByRole("checkbox", { name: "ญี่ปุ่น", exact: true });
+    await thai.tap();
+    await japanese.focus();
+    await japanese.press("Space");
+    await expect(thai).toBeChecked();
+    await expect(japanese).toBeChecked();
+    await thai.tap();
+    await expect(thai).not.toBeChecked();
+    await expect(japanese).toBeChecked();
+    const difficulty = page.getByRole("radiogroup", {
+      name: "ความยาก",
+      exact: true,
+    });
+    await expect(
+      difficulty.getByRole("radio", { name: "ทุกระดับ" }),
+    ).toBeChecked();
+    await difficulty.getByRole("radio", { name: "ปานกลาง" }).tap();
+    await expect(difficulty.getByRole("radio", { checked: true })).toHaveText(
+      "ปานกลาง",
+    );
+    await expect(difficulty.locator('input[type="radio"]')).toHaveCount(0);
+    expect(
+      await difficulty.evaluate((el) => el.scrollWidth <= el.clientWidth),
+    ).toBe(true);
+    await difficulty.screenshot({
+      path: info.outputPath("difficulty-radio-mobile.png"),
+    });
+  });
+});
 
 test("household profile menu edits names without losing the invitation draft", async ({
   page,
@@ -253,8 +427,10 @@ test("statistics compares used groceries with expiry loss", async ({
   await expect(
     page.getByRole("heading", { name: "Monthly comparison" }),
   ).toBeVisible();
-  await expect(page.getByText("Total cost · ฿205.00")).toBeVisible();
-  await expect(page.getByText("Total loss · ฿53.50")).toBeVisible();
+  await expect(
+    page.getByText(/Total cost · (?:฿|THB)\s*205\.00/),
+  ).toBeVisible();
+  await expect(page.getByText(/Total loss · (?:฿|THB)\s*53\.50/)).toBeVisible();
   await expect(
     page.getByRole("img", { name: /500 g used; 100 g lost/ }),
   ).toBeVisible();
@@ -519,16 +695,12 @@ test("members share inventory, record a cooked meal and retain depleted history"
   await page.getByRole("button", { name: "Add groceries" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Item name", { exact: true }).fill("Spinach");
-  await dialog
-    .getByRole("combobox", { name: "Unit", exact: true })
-    .selectOption("each");
-  await dialog.getByLabel("Storage location").selectOption("fridge");
+  await chooseOption(dialog, "Unit", "each");
+  await chooseOption(dialog, "Storage location", "Fridge");
   await dialog.getByLabel("Quantity").fill("1.5");
   await dialog.getByRole("button", { name: "Save entry" }).click();
   await expect(dialog.getByRole("alert")).toContainText("whole number");
-  await dialog
-    .getByRole("combobox", { name: "Unit", exact: true })
-    .selectOption("g");
+  await chooseOption(dialog, "Unit", "g");
   await dialog.getByLabel("Quantity").fill("100");
   await dialog.getByLabel("Expiry date").fill(localDay());
   await dialog.getByRole("button", { name: "Save entry" }).click();
@@ -591,6 +763,7 @@ test("members share inventory, record a cooked meal and retain depleted history"
   await page.setViewportSize(desktopViewport);
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
+    reducedMotion: "reduce",
     baseURL: "http://127.0.0.1:3310",
   });
   const member = await context.newPage();
@@ -667,6 +840,7 @@ test("members share inventory, record a cooked meal and retain depleted history"
     await expect(member.getByRole("button", { name: /Spinach/ })).toContainText(
       "25 g",
     );
+    await expect(member.getByRole("dialog")).toHaveCount(0);
     await page.bringToFront();
     await page.clock.fastForward(30_000);
     await expect(ownerQuantity).toContainText("25 g");
@@ -867,7 +1041,7 @@ test("camera retries unreadable frames and automatically looks up a barcode once
   await expect(dialog.getByLabel("Quantity")).toHaveValue("500");
   await expect(
     dialog.getByRole("combobox", { name: "Unit", exact: true }),
-  ).toHaveValue("g");
+  ).toHaveText("g");
   await expect(
     dialog.getByRole("link", { name: "Product source" }),
   ).toHaveAttribute("href", "https://example.com/rice");
@@ -933,10 +1107,10 @@ test("photo intake, barcode review, pantry request preview, edit and removal", a
   await expect(dialog.getByLabel("Quantity")).toHaveValue("500");
   await expect(
     dialog.getByRole("combobox", { name: "Unit", exact: true }),
-  ).toHaveValue("g");
+  ).toHaveText("g");
   await expect(dialog.getByText(/Example · 500 g/)).toBeVisible();
   await dialog.getByLabel("Quantity").fill("250");
-  await dialog.getByLabel("Storage location").selectOption("pantry");
+  await chooseOption(dialog, "Storage location", "Pantry");
   await dialog.getByRole("button", { name: "Save entry" }).click();
   await go(page, "Meal ideas");
   await page.getByRole("button", { name: "Generate menu" }).click();
@@ -946,7 +1120,7 @@ test("photo intake, barcode review, pantry request preview, edit and removal", a
   await go(page, "Inventory");
   await page.getByRole("button", { name: /Rice/ }).click();
   await dialog.getByRole("button", { name: "Edit entry" }).click();
-  await dialog.getByLabel("Storage location").selectOption("other");
+  await chooseOption(dialog, "Storage location", "Other");
   await dialog.getByRole("button", { name: "Save entry" }).click();
   await expect(page.getByRole("button", { name: /Rice/ })).toContainText(
     "Other",
@@ -1046,6 +1220,12 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
       json: {
         suggestions: [
           { name: eggs, quantity: "6", unit: "each", expiry_date: null },
+          {
+            name: { en: "Basil", th: "กะเพรา" },
+            quantity: null,
+            unit: null,
+            expiry_date: null,
+          },
         ],
       },
     });
@@ -1074,6 +1254,13 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
   await shutter.click();
   expect(analyses).toBe(0);
   await dialog.getByRole("button", { name: "Analyze photo" }).click();
+  const secondItem = dialog.getByRole("group", { name: "Item 2", exact: true });
+  await expect(secondItem.getByLabel("Quantity")).toHaveValue("");
+  await expect(
+    secondItem.getByRole("combobox", { name: "Unit", exact: true }),
+  ).toHaveText("Select unit");
+  await secondItem.getByRole("button", { name: "Remove item 2" }).click();
+  await dialog.getByText("Date, price and names", { exact: true }).click();
   await expect(
     dialog.getByLabel("Thai name (optional)", { exact: true }),
   ).toHaveValue(eggs.th);
@@ -1081,23 +1268,21 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
   await dialog.getByLabel("Price paid (optional, THB)").fill("30.00");
   expect(analyses).toBe(1);
   await expect(dialog.getByLabel("Expiry date")).toHaveValue("");
-  await dialog
-    .getByRole("combobox", { name: "Storage location", exact: true })
-    .selectOption("fridge");
-  await page.route("**/api/inventory?*", async (route) => {
+  await chooseOption(dialog, "Storage location", "Fridge");
+  await page.route("**/api/inventory/batches", async (route) => {
     if (route.request().method() !== "POST") return route.fallback();
     await route.fulfill({
       status: 503,
       json: { code: "database_unavailable" },
     });
   });
-  await dialog.getByRole("button", { name: "Save entry" }).click();
+  await dialog.getByRole("button", { name: "Save 1 item" }).click();
   await expect(dialog.getByRole("alert")).toContainText(
     "database is unavailable",
   );
   await expect(dialog.getByLabel("Quantity")).toHaveValue("6");
-  await page.unroute("**/api/inventory?*");
-  await dialog.getByRole("button", { name: "Save entry" }).click();
+  await page.unroute("**/api/inventory/batches");
+  await dialog.getByRole("button", { name: "Retry save" }).click();
   await expect(
     page.getByRole("button", { name: /Chicken eggs/ }),
   ).toContainText("6 each");
@@ -1138,31 +1323,47 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
   });
   await expect(exclusions).toHaveValue(eggs.th);
   await exclusions.fill("Peanuts");
-  await expect(page.getByLabel("Stove", { exact: true })).toBeChecked();
-  await page.getByLabel("Stove", { exact: true }).uncheck();
-  await page.getByLabel("Microwave", { exact: true }).check();
+  await expect(
+    page.getByRole("checkbox", { name: "Stove", exact: true }),
+  ).toBeChecked();
+  await page.getByRole("checkbox", { name: "Stove", exact: true }).uncheck();
+  await page.getByRole("checkbox", { name: "Microwave", exact: true }).check();
   const diet = page
     .locator("details")
     .filter({ has: page.getByText("Diet & nutrition", { exact: true }) });
   await diet.locator("summary").click();
-  await diet.getByLabel("Vegan", { exact: true }).check();
-  await diet.getByLabel("Other", { exact: true }).check();
+  await diet.getByRole("checkbox", { name: "Vegan", exact: true }).check();
+  await diet.getByRole("checkbox", { name: "Other", exact: true }).check();
   await diet.getByLabel("Other dietary style").fill("Dairy-free");
-  await diet
-    .getByRole("combobox", { name: "Nutrition goal", exact: true })
-    .selectOption("other");
+  await chooseOption(diet, "Nutrition goal", "Other");
   await diet.getByLabel("Other nutrition goal").fill("More fiber");
   const cuisine = page
     .locator("details")
     .filter({ has: page.getByText("Cuisine & difficulty", { exact: true }) });
   await cuisine.locator("summary").click();
-  await cuisine.getByLabel("Thai", { exact: true }).check();
-  await cuisine.getByLabel("Japanese", { exact: true }).check();
-  await cuisine.getByLabel("Easy", { exact: true }).check();
-  await cuisine.getByLabel("Other", { exact: true }).check();
+  await cuisine.getByRole("checkbox", { name: "Thai", exact: true }).check();
+  await cuisine
+    .getByRole("checkbox", { name: "Japanese", exact: true })
+    .check();
+  await cuisine.getByRole("checkbox", { name: "Other", exact: true }).check();
   await cuisine.getByLabel("Other cuisine").fill("Indian");
+  const difficulty = cuisine.getByRole("radiogroup", { name: "Difficulty" });
+  const anyLevel = difficulty.getByRole("radio", { name: "Any level" });
+  const easy = difficulty.getByRole("radio", { name: "Easy" });
+  await page.keyboard.press("Tab");
+  await expect(anyLevel).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(difficulty.getByRole("radio", { name: "Hard" })).toBeChecked();
+  await page.keyboard.press("ArrowDown");
+  await expect(anyLevel).toBeChecked();
+  await page.keyboard.press("ArrowRight");
+  await expect(easy).toBeFocused();
+  await expect(easy).toBeChecked();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  await expect(easy).toBeFocused();
   await cuisine.locator("summary").click();
-  await page.getByLabel("Maximum total time").selectOption("30");
+  await chooseOption(page, "Maximum total time", "Up to 30 minutes");
   await page.getByRole("button", { name: "Fewer servings" }).click();
   await expect(
     page.getByRole("button", { name: "Fewer servings" }),
@@ -1372,6 +1573,7 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
     mobileRecipe.getByRole("button", { name: "ฉันทำเมนูนี้แล้ว" }),
   ).toBeDisabled();
   await mobileRecipe.getByRole("button", { name: "ปิด" }).click();
+  await expect(mobileRecipe).toHaveCount(0);
   await page.evaluate(() => window.scrollTo(0, 0));
   expect(
     await page.evaluate(
@@ -1396,4 +1598,319 @@ test("reviews photo suggestions and shows recipes with personal overrides", asyn
   expect(await (await page.request.get("/api/equipment")).json()).toEqual([
     { id: expect.any(String), name: "Stove" },
   ]);
+});
+
+test("reviews a shopping list together and learns household storage after a lost save response", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await register(page, "basket" + suffix());
+  await page
+    .getByRole("button", { name: "Create household", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  async function paste(list: string) {
+    await page
+      .getByRole("button", { name: "Add groceries", exact: true })
+      .click();
+    await dialog.getByRole("button", { name: "Paste list" }).click();
+    await dialog.getByLabel("Shopping list").fill(list);
+    await dialog.getByRole("button", { name: "Review list" }).click();
+    await expect(
+      dialog.getByRole("heading", { name: /Review groceries/ }),
+    ).toBeVisible();
+  }
+  await paste("Eggs 6 each\nBasil 100 g\nRice 1 kg");
+  const row = (index: number) =>
+    dialog.getByRole("group", { name: "Item " + index, exact: true });
+  await chooseOption(row(3), "Storage location", "Pantry");
+  await chooseOption(dialog, "Set storage for 2 unassigned", "Fridge");
+  await row(2).getByLabel("Quantity").fill("50");
+  await row(3).getByRole("button", { name: "Remove item 3" }).click();
+  await dialog.getByRole("button", { name: "Add missing item" }).click();
+  await row(3).getByLabel("Item name").fill("Milk");
+  await row(3).getByLabel("Quantity").fill("1");
+  await chooseOption(row(3), "Unit", "l");
+  await chooseOption(row(3), "Storage location", "Fridge");
+  await dialog.locator(".dialog-body").evaluate((el) => {
+    el.scrollTop = 0;
+  });
+  await expect
+    .poll(() => dialog.evaluate((el) => el.scrollWidth <= el.clientWidth))
+    .toBe(true);
+  await dialog.screenshot({
+    path: info.outputPath("grocery-batch-review.png"),
+  });
+  let key: string | undefined;
+  let attempts = 0;
+  await page.route("**/api/inventory/batches", async (route) => {
+    const request = route.request();
+    expect(request.postDataJSON()).toMatchObject({
+      source: "list",
+      offered: 3,
+      corrected: 1,
+      removed: 1,
+    });
+    const upstream = await route.fetch();
+    expect(upstream.status()).toBe(201);
+    if (++attempts === 1) {
+      key = request.headers()["idempotency-key"];
+      return route.abort("failed");
+    }
+    expect(request.headers()["idempotency-key"]).toBe(key);
+    return route.fulfill({ response: upstream });
+  });
+  await dialog.getByRole("button", { name: "Save 3 items" }).click();
+  await dialog.getByRole("button", { name: "Retry save" }).click();
+  await expect(page.getByRole("status")).toContainText("3 items saved");
+  await expect(page.getByRole("button", { name: /Eggs/ })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /Basil/ })).toContainText(
+    "50 g",
+  );
+  await page.getByRole("link", { name: "Find a meal" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Meal ideas", exact: true }),
+  ).toBeVisible();
+  await go(page, "Inventory");
+  await paste("Eggs 12 each\nRice 1 kg");
+  await expect(
+    row(1).getByRole("combobox", { name: "Storage location" }),
+  ).toHaveText("Fridge");
+  await expect(
+    row(2).getByRole("combobox", { name: "Storage location" }),
+  ).toHaveText("Select location");
+});
+
+test("reads a receipt, checks the source image and saves corrected line totals", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await register(page, "receipt" + suffix());
+  await page
+    .getByRole("button", { name: "Create household", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Add groceries", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Receipt", exact: true }).click();
+  let reads = 0;
+  await page.route("**/api/receipts/analyze", async (route) => {
+    reads++;
+    expect(route.request().headers()["content-type"]).toContain(
+      "multipart/form-data",
+    );
+    return route.fulfill({
+      json: {
+        currency: "THB",
+        has_more: false,
+        suggestions: [
+          {
+            name: { en: "Milk", th: "นม" },
+            printed_name: "MILK 1 L",
+            quantity: "2",
+            unit: "l",
+            price: "76.00",
+          },
+          {
+            name: { en: "Basil", th: "โหระพา" },
+            printed_name: "BASIL",
+            quantity: null,
+            unit: null,
+            price: "9.00",
+          },
+        ],
+      },
+    });
+  });
+  const image = await readFile("../backend/evals/grocery-receipt-demo.png");
+  await dialog.locator("input[type=file]").setInputFiles({
+    name: "receipt.png",
+    mimeType: "image/png",
+    buffer: image,
+  });
+  await expect(
+    dialog.getByRole("img", { name: "Receipt preview" }),
+  ).toBeVisible();
+  expect(reads).toBe(0);
+  await dialog
+    .getByRole("button", { name: "Read receipt", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("heading", { name: /Review groceries/ }),
+  ).toBeVisible();
+  expect(reads).toBe(1);
+  await dialog.getByText("View original receipt").click();
+  await expect(
+    dialog.getByRole("img", { name: "Original receipt" }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      dialog
+        .getByRole("img", { name: "Original receipt" })
+        .evaluate((el) => (el as HTMLImageElement).naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await dialog.getByText("View original receipt").click();
+  const first = dialog.getByRole("group", { name: "Item 1", exact: true });
+  const second = dialog.getByRole("group", { name: "Item 2", exact: true });
+  await expect(first.getByText("MILK 1 L", { exact: true })).toBeVisible();
+  await chooseOption(dialog, "Set storage for 2 unassigned", "Fridge");
+  await expect(second.getByLabel("Quantity")).toHaveValue("");
+  await expect(first.getByLabel("Quantity")).toHaveValue("2");
+  await first.locator("summary").click();
+  await expect(first.getByLabel("Expiry date")).toHaveValue("");
+  await first.getByLabel("Price paid (optional, THB)").fill("72.00");
+  await first.locator("summary").click();
+  await dialog.locator(".dialog-body").evaluate((el) => {
+    el.scrollTop = 0;
+  });
+  await dialog.screenshot({ path: info.outputPath("receipt-review.png") });
+  await second.getByRole("button", { name: "Remove item 2" }).click();
+  const save = page.waitForRequest(
+    (req) =>
+      req.url().endsWith("/api/inventory/batches") && req.method() === "POST",
+  );
+  await dialog.getByRole("button", { name: "Save 1 item" }).click();
+  const body = (await save).postDataJSON();
+  expect(body).toMatchObject({
+    source: "receipt",
+    offered: 2,
+    removed: 1,
+    corrected: 1,
+    items: [
+      {
+        name: "Milk",
+        quantity: "2",
+        unit: "l",
+        location: "fridge",
+        price: "72.00",
+        expiry_date: null,
+      },
+    ],
+  });
+  expect(body.items[0]).not.toHaveProperty("printed_name");
+  await expect(page.getByRole("status")).toContainText("1 item saved");
+  await expect(page.getByRole("button", { name: /Milk/ })).toContainText(/2 l/);
+});
+
+test("modal keeps long forms reachable and protects pending confirmations", async ({
+  page,
+}, info) => {
+  await register(page, "modal" + suffix());
+  await page
+    .getByRole("button", { name: "Create household", exact: true })
+    .click();
+  const add = page.getByRole("button", { name: "Add groceries", exact: true });
+  await add.focus();
+  await add.press("Enter");
+  const editor = page.getByRole("dialog", { name: "Add groceries" });
+  const heading = editor.getByRole("heading", {
+    name: "Add groceries",
+    exact: true,
+  });
+  await expect(heading).toBeFocused();
+  await expect(editor).toHaveCSS("opacity", "1");
+  await page.keyboard.press("Tab");
+  await expect(
+    editor.getByRole("button", { name: "Close", exact: true }),
+  ).toBeFocused();
+  await editor.getByLabel("Item name", { exact: true }).fill("Green beans");
+  await page.mouse.click(6, 6);
+  await expect(editor.getByLabel("Item name", { exact: true })).toHaveValue(
+    "Green beans",
+  );
+  await page.screenshot({ path: info.outputPath("modal-desktop.png") });
+
+  await page.setViewportSize({ width: 320, height: 620 });
+  const body = editor.locator(".dialog-body");
+  await expect
+    .poll(() => body.evaluate((el) => el.scrollHeight - el.clientHeight))
+    .toBeGreaterThan(0);
+  const header = editor.locator("header");
+  const top = await header.evaluate((el) => el.getBoundingClientRect().top);
+  await editor
+    .getByRole("button", { name: "Save entry" })
+    .scrollIntoViewIfNeeded();
+  await expect
+    .poll(() => body.evaluate((el) => el.scrollTop))
+    .toBeGreaterThan(0);
+  expect(
+    await header.evaluate((el) => el.getBoundingClientRect().top),
+  ).toBeCloseTo(top, 0);
+  expect(
+    await editor.evaluate((el) =>
+      Math.abs(innerHeight - el.getBoundingClientRect().bottom),
+    ),
+  ).toBeLessThan(2);
+  expect(await body.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+    true,
+  );
+  await page.screenshot({ path: info.outputPath("modal-mobile.png") });
+  const exiting = await editor.evaluate(async (el) => {
+    el.querySelector<HTMLButtonElement>(".dialog-close")!.click();
+    await new Promise(requestAnimationFrame);
+    return (
+      el.matches(":modal") &&
+      el.querySelector(".dialog-body")!.hasAttribute("inert")
+    );
+  });
+  expect(exiting).toBe(true);
+  await expect(editor).toHaveCount(0);
+  await expect(add).toBeFocused();
+
+  await page.setViewportSize({ width: 1200, height: 800 });
+  const food = await page.request.post("/api/preferences/foods-to-avoid", {
+    headers: { Origin: new URL(page.url()).origin },
+    data: { name: "Peanuts" },
+  });
+  expect(food.ok()).toBe(true);
+  await go(page, "Settings");
+  const remove = page
+    .getByRole("listitem")
+    .filter({ hasText: "Peanuts" })
+    .getByRole("button", { name: "Remove", exact: true });
+  await remove.click();
+  const confirm = page.getByRole("dialog", { name: "Remove item" });
+  await expect(confirm).toHaveCSS("opacity", "1");
+  const close = confirm.getByRole("button", { name: "Close" });
+  const deleteItem = confirm.getByRole("button", { name: "Confirm removal" });
+  await page.keyboard.press("Shift+Tab");
+  await expect(deleteItem).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(deleteItem).toBeFocused();
+  const bounds = (await confirm.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(5, 5);
+  await page.mouse.up();
+  await expect(confirm).toBeVisible();
+  await page.mouse.click(5, 5);
+  await expect(confirm).toHaveCount(0);
+  await expect(remove).toBeFocused();
+
+  await remove.click();
+  let release!: () => void;
+  const hold = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/preferences/foods-to-avoid/*", async (route) => {
+    await hold;
+    await route.continue();
+  });
+  try {
+    await confirm.getByRole("button", { name: "Confirm removal" }).click();
+    await expect(confirm).toHaveAttribute("aria-busy", "true");
+    await expect(confirm.getByRole("button", { name: "Close" })).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await page.mouse.click(5, 5);
+    await expect(confirm).toBeVisible();
+  } finally {
+    release();
+  }
+  await expect(confirm).toHaveCount(0);
+  await expect(remove).toHaveCount(0);
+  await expect(page.locator("main")).toBeFocused();
 });

@@ -66,13 +66,13 @@ def test_recommendations_discard_invalid_candidates_and_cap_at_five():
     sample = {
         "description": {"en": "A bowl of warm rice.", "th": "ข้าวอุ่นหนึ่งชาม"},
         "ingredients": [{"reference": 0, "quantity": "20"}],
-        "equipment": ["Stove"],
+        "equipment_references": [0],
         "steps": [{"en": "Warm the rice.", "th": "อุ่นข้าว"}],
         "minutes": 10,
         "difficulty": "easy",
     }
     candidates = [
-        sample | {"equipment": ["Oven"]},
+        sample | {"equipment_references": [1]},
         sample | {"minutes": 16},
         sample | {"ingredients": [{"reference": 1, "quantity": "20"}]},
         sample | {"ingredients": [{"reference": 0, "quantity": "0"}]},
@@ -133,7 +133,7 @@ def test_recommendations_estimate_weighted_grocery_costs():
                     "name": {"en": "Rice", "th": "ข้าว"},
                     "description": {"en": "A bowl of plain rice.", "th": "ข้าวสวยหนึ่งชาม"},
                     "ingredients": [{"reference": 0, "quantity": "250"}],
-                    "equipment": [],
+                    "equipment_references": [],
                     "steps": [{"en": "Serve.", "th": "เสิร์ฟ"}],
                     "minutes": 1,
                     "difficulty": "easy",

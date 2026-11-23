@@ -11,7 +11,6 @@ import {
   Utensils,
   type LucideIcon,
 } from "lucide-react";
-import { api } from "@/lib/api";
 import {
   eligibleEntries,
   normalize,
@@ -26,8 +25,10 @@ import {
   difficulties,
   translatedNames,
   type MealPreferences,
-  type RecommendationPreview,
 } from "@/lib/meals";
+import { ChoiceOption } from "./choice-option";
+import { RadioGroup } from "./radio-group";
+import { SelectField } from "./select-field";
 import { equipmentChoices } from "./equipment-picker";
 import { Message, useAction, useText } from "./ui";
 
@@ -58,37 +59,37 @@ function CheckGroup({
   return (
     <fieldset className="meal-group">
       <legend>{title}</legend>
-      <div className="meal-choices">
-        {options.map(({ value, label }) => (
-          <label key={value}>
-            <input
-              type="checkbox"
-              checked={selection.names.includes(value)}
-              onChange={(e) =>
+      <div className="choice-options">
+        {options.map(({ value, label }) => {
+          const checked = selection.names.includes(value);
+          return (
+            <ChoiceOption
+              key={value}
+              role="checkbox"
+              label={label}
+              checked={checked}
+              onClick={() =>
                 change({
                   ...selection,
-                  names: e.target.checked
-                    ? [...selection.names, value]
-                    : selection.names.filter((name) => name !== value),
+                  names: checked
+                    ? selection.names.filter((name) => name !== value)
+                    : [...selection.names, value],
                 })
               }
             />
-            {label}
-          </label>
-        ))}
-        <label>
-          <input
-            type="checkbox"
-            checked={selection.other !== null}
-            onChange={(e) =>
-              change({
-                ...selection,
-                other: e.target.checked ? "" : null,
-              })
-            }
-          />
-          {t("Other", "อื่น ๆ")}
-        </label>
+          );
+        })}
+        <ChoiceOption
+          role="checkbox"
+          label={t("Other", "อื่น ๆ")}
+          checked={selection.other !== null}
+          onClick={() =>
+            change({
+              ...selection,
+              other: selection.other === null ? "" : null,
+            })
+          }
+        />
       </div>
       {selection.other !== null && (
         <label>
@@ -140,18 +141,19 @@ export function MealForm({
   stock,
   day,
   add,
-  showPreview,
+  generate,
+  kitchenSection,
 }: {
   foods: Named[];
   equipment: Named[];
   stock: Stock[];
   day: string;
   add: () => void;
-  showPreview: (preview: RecommendationPreview) => void;
+  generate: (preferences: MealPreferences) => Promise<void>;
+  kitchenSection: React.RefObject<HTMLDetailsElement | null>;
 }) {
   const { t, lang } = useText();
   const action = useAction();
-  const kitchenSection = useRef<HTMLDetailsElement>(null);
   const avoidedField = useRef<HTMLTextAreaElement>(null);
   const [servings, setServings] = useState(2);
   const [minutes, setMinutes] = useState("");
@@ -209,13 +211,7 @@ export function MealForm({
         max_total_minutes: Number(minutes) || null,
         difficulty,
       };
-      showPreview(
-        await api<RecommendationPreview>("menus/recommendations", "POST", {
-          today: day,
-          generate: true,
-          ...preferences,
-        }),
-      );
+      await generate(preferences);
     });
   }
 
@@ -246,23 +242,19 @@ export function MealForm({
               </button>
             </div>
           </fieldset>
-          <label>
-            {t("Maximum total time", "เวลารวมสูงสุด")}
-            <select
-              value={minutes}
-              onChange={(e) => setMinutes(e.target.value)}
-            >
-              <option value="">{t("Unlimited", "ไม่จำกัด")}</option>
-              <option value="15">
-                {t("Up to 15 minutes", "ไม่เกิน 15 นาที")}
-              </option>
-              <option value="30">
-                {t("Up to 30 minutes", "ไม่เกิน 30 นาที")}
-              </option>
-              <option value="60">{t("Up to 1 hour", "ไม่เกิน 1 ชม.")}</option>
-              <option value="120">{t("Up to 2 hours", "ไม่เกิน 2 ชม.")}</option>
-            </select>
-          </label>
+          <SelectField
+            label={t("Maximum total time", "เวลารวมสูงสุด")}
+            value={minutes}
+            onChange={setMinutes}
+            disabled={action.busy}
+            options={[
+              { value: "", label: t("Unlimited", "ไม่จำกัด") },
+              { value: "15", label: t("Up to 15 minutes", "ไม่เกิน 15 นาที") },
+              { value: "30", label: t("Up to 30 minutes", "ไม่เกิน 30 นาที") },
+              { value: "60", label: t("Up to 1 hour", "ไม่เกิน 1 ชม.") },
+              { value: "120", label: t("Up to 2 hours", "ไม่เกิน 2 ชม.") },
+            ]}
+          />
         </div>
         <div className="meal-sections">
           <PreferenceSection
@@ -277,18 +269,17 @@ export function MealForm({
               change={setDiet}
               otherLabel={t("Other dietary style", "ระบุรูปแบบการกินอื่น ๆ")}
             />
-            <label>
-              {t("Nutrition goal", "เป้าหมายโภชนาการ")}
-              <select value={goal} onChange={(e) => setGoal(e.target.value)}>
-                <option value="">{t("No preference", "ไม่ระบุ")}</option>
-                {nutritionOptions.map((item) => (
-                  <option key={item.en} value={item.en}>
-                    {item[lang]}
-                  </option>
-                ))}
-                <option value="other">{t("Other", "อื่น ๆ โปรดระบุ")}</option>
-              </select>
-            </label>
+            <SelectField
+              label={t("Nutrition goal", "เป้าหมายโภชนาการ")}
+              value={goal}
+              onChange={setGoal}
+              disabled={action.busy}
+              options={[
+                { value: "", label: t("No preference", "ไม่ระบุ") },
+                ...options(nutritionOptions),
+                { value: "other", label: t("Other", "อื่น ๆ โปรดระบุ") },
+              ]}
+            />
             {goal === "other" && (
               <label>
                 {t("Other nutrition goal", "ระบุเป้าหมายโภชนาการอื่น ๆ")}
@@ -318,25 +309,19 @@ export function MealForm({
               change={setCuisines}
               otherLabel={t("Other cuisine", "ระบุสไตล์อาหารอื่น ๆ")}
             />
-            <fieldset className="meal-group">
-              <legend>{t("Difficulty", "ความยาก")}</legend>
-              <div className="meal-choices">
-                {(
-                  Object.keys(difficulties) as (keyof typeof difficulties)[]
-                ).map((value) => (
-                  <label key={value}>
-                    <input
-                      type="radio"
-                      name="difficulty"
-                      value={value}
-                      checked={value === difficulty}
-                      onChange={() => setDifficulty(value)}
-                    />
-                    {difficulties[value][lang]}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <RadioGroup
+              label={t("Difficulty", "ความยาก")}
+              name="difficulty"
+              value={difficulty}
+              onChange={setDifficulty}
+              disabled={action.busy}
+              options={(
+                Object.keys(difficulties) as MealPreferences["difficulty"][]
+              ).map((value) => ({
+                value,
+                label: difficulties[value][lang],
+              }))}
+            />
           </PreferenceSection>
           <PreferenceSection
             icon={CookingPot}

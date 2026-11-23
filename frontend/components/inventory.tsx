@@ -1,4 +1,5 @@
 "use client";
+import { AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import {
   Search,
@@ -30,6 +31,7 @@ import {
   useLabels,
   useAction,
 } from "./ui";
+import { SelectField } from "./select-field";
 import { StockEditor } from "./stock-editor";
 import { MemberIdentity } from "./household-members";
 
@@ -131,20 +133,15 @@ export function Inventory({
             />
           </span>
         </label>
-        <label>
-          {t("Storage location", "ที่จัดเก็บ")}
-          <select
-            value={loc}
-            onChange={(e) => setLoc(e.target.value as typeof loc)}
-          >
-            <option value="">{t("All locations", "ทุกที่จัดเก็บ")}</option>
-            {locations.map((l) => (
-              <option key={l} value={l}>
-                {labels[l]}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SelectField<Location | "">
+          label={t("Storage location", "ที่จัดเก็บ")}
+          value={loc}
+          onChange={setLoc}
+          options={[
+            { value: "", label: t("All locations", "ทุกที่จัดเก็บ") },
+            ...locations.map((value) => ({ value, label: labels[value] })),
+          ]}
+        />
       </div>
       {soon ? (
         <>
@@ -185,24 +182,28 @@ export function Inventory({
           )}
         </>
       )}
-      {selected &&
-        (edit && current ? (
-          <StockEditor
-            existing={current}
-            day={day}
-            close={close}
-            saved={refresh}
-          />
-        ) : (
-          <StockDetail
-            item={current ?? selected}
-            active={Boolean(current)}
-            close={close}
-            edit={() => setEdit(true)}
-            day={day}
-            refresh={refresh}
-          />
-        ))}
+      <AnimatePresence mode="wait">
+        {selected &&
+          (edit && current ? (
+            <StockEditor
+              key={"edit-" + current.id}
+              existing={current}
+              day={day}
+              close={close}
+              saved={refresh}
+            />
+          ) : (
+            <StockDetail
+              key={"detail-" + selected.id}
+              item={current ?? selected}
+              active={Boolean(current)}
+              close={close}
+              edit={() => setEdit(true)}
+              day={day}
+              refresh={refresh}
+            />
+          ))}
+      </AnimatePresence>
     </>
   );
 }
@@ -251,7 +252,12 @@ function StockDetail({
   }
 
   return (
-    <Dialog title={displayName(item, lang)} close={close} busy={action.busy}>
+    <Dialog
+      icon={icons[item.location]}
+      title={displayName(item, lang)}
+      close={close}
+      busy={action.busy}
+    >
       {active && (
         <p className="detail-meta">
           <Package size={18} />

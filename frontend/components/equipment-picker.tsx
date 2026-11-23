@@ -1,4 +1,5 @@
 "use client";
+import { AnimatePresence } from "framer-motion";
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -110,29 +111,34 @@ function EquipmentCard({
         )}
       </button>
       {!confirmRemoval && <Message code={errorCode(change.error)} />}
-      {confirmRemoval && (
-        <Dialog
-          title={t("Remove equipment", "ลบอุปกรณ์")}
-          close={() => setConfirmRemoval(false)}
-          busy={change.isPending}
-        >
-          <p>
-            {t(
-              "Remove this custom item from your household?",
-              "ลบอุปกรณ์ที่เพิ่มเองนี้ออกจากครัวเรือนหรือไม่",
-            )}{" "}
-            <strong>{choice.name[lang]}</strong>
-          </p>
-          <Message code={errorCode(change.error)} />
-          <button
-            className="danger"
-            disabled={locked}
-            onClick={() => change.mutate(false)}
+      <AnimatePresence propagate>
+        {confirmRemoval && (
+          <Dialog
+            icon={CookingPot}
+            size="compact"
+            dismissOnBackdrop
+            title={t("Remove equipment", "ลบอุปกรณ์")}
+            close={() => setConfirmRemoval(false)}
+            busy={change.isPending}
           >
-            {t("Confirm removal", "ยืนยันการลบ")}
-          </button>
-        </Dialog>
-      )}
+            <p>
+              {t(
+                "Remove this custom item from your household?",
+                "ลบอุปกรณ์ที่เพิ่มเองนี้ออกจากครัวเรือนหรือไม่",
+              )}{" "}
+              <strong>{choice.name[lang]}</strong>
+            </p>
+            <Message code={errorCode(change.error)} />
+            <button
+              className="danger"
+              disabled={locked}
+              onClick={() => change.mutate(false)}
+            >
+              {t("Confirm removal", "ยืนยันการลบ")}
+            </button>
+          </Dialog>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -157,13 +163,15 @@ export function EquipmentPicker() {
       {rows.isPending && <Busy />}
       {rows.data && (
         <div className="equipment-grid">
-          {equipmentChoices(rows.data).map((choice) => (
-            <EquipmentCard
-              key={choice.name.en}
-              choice={choice}
-              disabled={rows.isError}
-            />
-          ))}
+          <AnimatePresence>
+            {equipmentChoices(rows.data).map((choice) => (
+              <EquipmentCard
+                key={choice.name.en}
+                choice={choice}
+                disabled={rows.isError}
+              />
+            ))}
+          </AnimatePresence>
         </div>
       )}
     </section>

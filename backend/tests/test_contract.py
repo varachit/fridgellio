@@ -22,6 +22,10 @@ def test_schema_and_auth():
             "multipart/form-data"
             in spec["paths"]["/api/photos/analyze"]["post"]["requestBody"]["content"]
         )
+        receipt = spec["paths"]["/api/receipts/analyze"]["post"]
+        assert receipt["security"] == [{"AccountSession": []}]
+        assert "multipart/form-data" in receipt["requestBody"]["content"]
+        assert {"413", "422", "429", "503"} <= receipt["responses"].keys()
         decode = spec["paths"]["/api/barcodes/decode"]["post"]
         assert decode["security"] == [{"AccountSession": []}]
         assert "multipart/form-data" in decode["requestBody"]["content"]

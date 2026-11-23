@@ -5,8 +5,8 @@ import sys
 from uuid import UUID
 
 from fridgellio.config import Settings
-from fridgellio.models import AccountCredential, AccountSession
-from sqlalchemy import create_engine, func, select, update
+from fridgellio.models import AccountCredential, AccountSession, AuthRateLimit
+from sqlalchemy import create_engine, delete, func, select, update
 
 schema = "fridgellio_browser_" + UUID(os.environ["FRIDGELLIO_E2E_RUN_ID"]).hex
 url = Settings(
@@ -15,9 +15,15 @@ url = Settings(
 scoped = url.update_query_dict({"options": f"-csearch_path={schema}"})
 
 if __name__ == "__main__":
-    operation, username = sys.argv[1:]
+    operation, *args = sys.argv[1:]
     engine = create_engine(scoped, hide_parameters=True)
     with engine.begin() as connection:
+        if operation == "start-test":
+            # Browser cases share one loopback source and an isolated suite schema.
+            connection.execute(delete(AuthRateLimit))
+            connection.commit()
+            sys.exit(0)
+        (username,) = args
         account_id = connection.execute(
             select(AccountCredential.account_id).where(
                 AccountCredential.username == username

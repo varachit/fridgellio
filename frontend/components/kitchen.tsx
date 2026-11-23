@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, MotionConfig } from "framer-motion";
 import { usePathname } from "next/navigation";
 import { Landing } from "./landing";
 import { Illustration } from "./illustration";
@@ -144,7 +145,9 @@ function MemberProvider({ account }: { account: Account }) {
   useEffect(() => () => client.clear(), [client]);
   return (
     <QueryClientProvider client={client}>
-      <MemberKitchen account={account} />
+      <MotionConfig reducedMotion="user">
+        <MemberKitchen account={account} />
+      </MotionConfig>
     </QueryClientProvider>
   );
 }
@@ -279,7 +282,7 @@ function Workspace({
     [menuOpen, setMenuOpen] = useState(false),
     [adding, setAdding] = useState(false);
   const [day, setDay] = useState(localDay),
-    [notice, setNotice] = useState(false);
+    [notice, setNotice] = useState<number | null>(null);
   const menu = useRef<HTMLDialogElement>(null);
   const content = useRef<HTMLElement>(null);
   const [reviewExpired, setReviewExpired] = useState(false);
@@ -294,7 +297,7 @@ function Workspace({
       );
       menu.current?.close();
       setAdding(false);
-      setNotice(false);
+      setNotice(null);
     };
     sync();
     window.addEventListener("hashchange", sync);
@@ -537,7 +540,7 @@ function Workspace({
               <button
                 className="primary"
                 onClick={() => {
-                  setNotice(false);
+                  setNotice(null);
                   setAdding(true);
                 }}
               >
@@ -549,9 +552,26 @@ function Workspace({
           {page === "pantry" && <Illustration variant="groceries" />}
         </div>
         <Message code={actionError} />
-        {notice && (
+        {notice !== null && (
           <p role="status" className="success">
-            {t("Groceries saved to your pantry.", "บันทึกรายการในคลังแล้ว")}
+            {notice === 0
+              ? t("Groceries saved to your pantry.", "บันทึกรายการในคลังแล้ว")
+              : t(
+                  `${notice} ${notice === 1 ? "item" : "items"} saved to your pantry.`,
+                  `บันทึก ${notice} รายการในคลังแล้ว`,
+                )}
+            {notice > 0 && (
+              <span className="batch-next">
+                {page !== "meals" && (
+                  <a href="#meals">{t("Find a meal", "หาเมนูอาหาร")}</a>
+                )}
+                {page !== "soon" && (
+                  <a href="#soon">
+                    {t("Check what expires soon", "ดูของใกล้หมดอายุ")}
+                  </a>
+                )}
+              </span>
+            )}
           </p>
         )}
         {page === "history" ? (
@@ -573,7 +593,9 @@ function Workspace({
               page === "meals" ? (
                 <Meals
                   preview={mealResult}
-                  showPreview={(result) => setMealResult(withRecipeIds(result))}
+                  showPreview={(result) =>
+                    setMealResult(result && withRecipeIds(result))
+                  }
                   onCooked={markRecipeCooked}
                   stock={stock.data}
                   day={day}
@@ -593,16 +615,18 @@ function Workspace({
             )}
           </>
         )}
-        {adding && (
-          <StockEditor
-            day={day}
-            close={() => setAdding(false)}
-            saved={() => {
-              refreshStock();
-              setNotice(true);
-            }}
-          />
-        )}
+        <AnimatePresence>
+          {adding && (
+            <StockEditor
+              day={day}
+              close={() => setAdding(false)}
+              saved={(count = 0) => {
+                refreshStock();
+                setNotice(count);
+              }}
+            />
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );
